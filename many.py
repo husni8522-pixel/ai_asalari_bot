@@ -15,6 +15,7 @@ from telegram.ext import (
 from openai import OpenAI
 from docx import Document
 from pypdf import PdfReader
+from datetime import datetime
 
 # ================== CONFIG ==================
 DATA_DIR = "data"
@@ -23,7 +24,7 @@ META_FILE = "meta.pkl"
 
 CHUNK_SIZE = 1000
 BATCH_SIZE = 32
-TOP_K = 10
+TOP_K = 8
 MAX_MEMORY = 5
 
 # ================== LOAD ENV ==================
@@ -33,55 +34,14 @@ OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 
 if not BOT_TOKEN or not OPENAI_KEY:
-    raise RuntimeError("❌ .env faylda TOKEN yoki OPENAI KEY yo‘q")
+    raise RuntimeError("❌ .env da token yoki openai key yo‘q")
 
 client = OpenAI(api_key=OPENAI_KEY)
 
-# ================== USER MEMORY ==================
-user_memory = {}  # user_id -> [questions]
-
-# ================== ASALARICHILIK MODULI ==================
-ASALARI_TOPICS = {
-    "kasallik": [
-        "kasallik", "varroa", "nosema", "akarapidoz",
-        "канa", "варроа", "болезнь",
-        "disease", "mite"
-    ],
-    "parvarish": [
-        "parvarish", "qishlatish", "uyacha", "ramka",
-        "уход", "зимовка",
-        "care", "wintering"
-    ],
-    "oziqlantirish": [
-        "oziqlantirish", "shakar", "sirop", "kandi",
-        "корм", "сироп",
-        "feeding", "syrup"
-    ],
-    "ona_ari": [
-        "ona ari", "qirolicha",
-        "матка",
-        "queen bee"
-    ],
-    "mahsulot": [
-        "asal", "mum", "perga", "propolis",
-        "мёд", "воск",
-        "honey", "wax"
-    ]
-}
-
-def is_asalari(text: str) -> bool:
-    t = text.lower()
-    for words in ASALARI_TOPICS.values():
-        if any(w in t for w in words):
-            return True
-    return False
-
-def detect_topic(text: str) -> str:
-    t = text.lower()
-    for topic, words in ASALARI_TOPICS.items():
-        if any(w in t for w in words):
-            return topic
-    return "umumiy"
+# ================== MEMORY & STATS ==================
+user_memory = {}
+user_stats = set()
+questions_log = []
 
 # ================== LANGUAGE ==================
 def detect_lang(text):
@@ -95,182 +55,154 @@ def detect_lang(text):
     except:
         return "uz"
 
-def translate(text, target):
-    if detect_lang(text) == target:
-        return text
-    r = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": f"Translate to {target}. Only translation."},
-            {"role": "user", "content": text}
-        ],
-        temperature=0
-    )
-    return r.choices[0].message.content.strip()
+# ================== BASIC CHAT ==================
+def basic_chat(text):
+    t = text.lower()
+
+    owner_uz = "Mening hujayinim Husniddin Zaripov, u juda yaxshi inson."
+    owner_ru = "Мой хозяин — Хусниддин Зарипов, он очень хороший человек."
+    owner_en = "My owner is Husniddin Zaripov. He is a very good person."
+
+    if any(w in t for w in ["salom", "assalomu", "hello", "hi", "привет", "здравствуйте"]):
+        return {
+            "uz": "Assalomu alaykum 😊 Savolingizni yozing.",
+            "ru": "Здравствуйте 😊 Задайте ваш вопрос.",
+            "en": "Hello 😊 Please ask your question."
+        }
+
+    if any(w in t for w in ["kimsan", "kim sen", "who are you", "кто ты"]):
+        return {
+            "uz": "Men asalarichilik bo‘yicha aqlli yordamchi botman 🐝",
+            "ru": "Я умный бот-помощник по пчеловодству 🐝",
+            "en": "I am an intelligent beekeeping assistant bot 🐝"
+        }
+
+    if any(w in t for w in ["kim yaratgan", "kim tuzgan", "kim ixtiro", "owner", "создал", "invented"]):
+        return {
+            "uz": owner_uz,
+            "ru": owner_ru,
+            "en": owner_en
+        }
+
+    if any(w in t for w in ["telefon", "номер", "phone", "raqaming"]):
+        return {
+            "uz": "📞 Telefon raqam: +998973850026",
+            "ru": "📞 Номер телефона: +998973850026",
+            "en": "📞 Phone number: +998973850026"
+        }
+
+    return None
+
+# ================== ASALARICHILIK ==================
+ASALARI_WORDS = ["asal", "ari", "varroa", "qirolicha", "bee", "honey", "пчела", "мёд"]
+
+def is_asalari(text):
+    return any(w in text.lower() for w in ASALARI_WORDS)
 
 # ================== FILE READ ==================
 def read_file(path):
     if path.endswith(".docx"):
-        doc = Document(path)
-        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        return "\n".join(p.text for p in Document(path).paragraphs)
     if path.endswith(".pdf"):
-        reader = PdfReader(path)
-        return "\n".join(p.extract_text() for p in reader.pages if p.extract_text())
+        return "\n".join(p.extract_text() for p in PdfReader(path).pages if p.extract_text())
     if path.endswith(".txt"):
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
-            return f.read()
+        return open(path, encoding="utf-8", errors="ignore").read()
     return ""
 
 def chunk_text(text):
     return [text[i:i+CHUNK_SIZE] for i in range(0, len(text), CHUNK_SIZE)]
 
-# ================== LOAD DOCS ==================
-def load_documents():
+# ================== INDEX ==================
+def build_index():
     docs = []
     for f in os.listdir(DATA_DIR):
-        if f.endswith((".docx", ".pdf", ".txt")):
+        if f.endswith((".pdf", ".docx", ".txt")):
             text = read_file(os.path.join(DATA_DIR, f))
-            for chunk in chunk_text(text):
-                if len(chunk.strip()) > 50 and is_asalari(chunk):
-                    docs.append(chunk.strip())
-    return docs
+            for c in chunk_text(text):
+                if len(c) > 50 and is_asalari(c):
+                    docs.append(c)
 
-# ================== EMBEDDINGS ==================
-def embed_texts(texts):
     vectors = []
-    for i in range(0, len(texts), BATCH_SIZE):
-        batch = texts[i:i+BATCH_SIZE]
+    for i in range(0, len(docs), BATCH_SIZE):
         r = client.embeddings.create(
             model="text-embedding-3-small",
-            input=batch
+            input=docs[i:i+BATCH_SIZE]
         )
-        for d in r.data:
-            vectors.append(d.embedding)
-    return np.array(vectors).astype("float32")
-
-# ================== BUILD / LOAD INDEX ==================
-def build_index():
-    docs = load_documents()
-    if not docs:
-        raise RuntimeError("❌ data/ ichida asalarichilik hujjatlari yo‘q")
-
-    print(f"📄 Chunklar: {len(docs)}")
-    vectors = embed_texts(docs)
+        vectors.extend([d.embedding for d in r.data])
 
     index = faiss.IndexFlatL2(len(vectors[0]))
-    index.add(vectors)
+    index.add(np.array(vectors).astype("float32"))
 
     faiss.write_index(index, INDEX_FILE)
-    with open(META_FILE, "wb") as f:
-        pickle.dump(docs, f)
+    pickle.dump(docs, open(META_FILE, "wb"))
 
-    print("✅ FAISS index yaratildi")
+def search_docs(q):
+    index = faiss.read_index(INDEX_FILE)
+    texts = pickle.load(open(META_FILE, "rb"))
 
-def load_index():
-    return faiss.read_index(INDEX_FILE), pickle.load(open(META_FILE, "rb"))
+    emb = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=[q]
+    ).data[0].embedding
 
-# ================== SEARCH ==================
-def search_documents(question):
-    index, texts = load_index()
-
-    queries = [
-        question,
-        translate(question, "ru"),
-        translate(question, "en")
-    ]
-
-    results = []
-
-    for q in queries:
-        emb = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=[q]
-        ).data[0].embedding
-
-        D, I = index.search(np.array([emb]).astype("float32"), TOP_K)
-        for i in I[0]:
-            txt = texts[i]
-            if is_asalari(txt):
-                results.append(txt)
-
-    return list(dict.fromkeys(results))[:TOP_K]
+    D, I = index.search(np.array([emb]).astype("float32"), TOP_K)
+    return [texts[i] for i in I[0]]
 
 # ================== AI ANSWER ==================
-def ai_answer(user_id, question):
-    if not is_asalari(question):
-        return "🐝 Bu bot faqat asalarichilik bo‘yicha savollarga javob beradi."
+def ai_answer(uid, q):
+    lang = detect_lang(q)
 
-    lang = detect_lang(question)
-    topic = detect_topic(question)
-    contexts = search_documents(question)
+    basic = basic_chat(q)
+    if basic:
+        return basic[lang]
 
-    if not contexts:
-        return "❌ Bu savol bo‘yicha hujjatlarda ma’lumot topilmadi."
+    if not is_asalari(q):
+        return {
+            "uz": "🐝 Bu bot asalarichilik uchun mo‘ljallangan.",
+            "ru": "🐝 Этот бот предназначен для пчеловодства.",
+            "en": "🐝 This bot is for beekeeping only."
+        }[lang]
 
-    memory = user_memory.get(user_id, [])
-    memory_text = "\n".join(memory[-2:]) if memory else ""
-
-    prompt = f"""
-You are a professional beekeeper assistant.
-
-Topic: {topic}
-Language: {lang}
-
-Rules:
-- ONLY beekeeping
-- Practical and clear
-- Step by step if possible
-
-Documents:
-{chr(10).join(contexts)}
-
-Previous related questions:
-{memory_text}
-
-Question:
-{question}
-"""
+    ctx = "\n".join(search_docs(q))
 
     r = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
             {"role": "system", "content": "You are an expert beekeeper."},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": f"{ctx}\n\nSavol: {q}"}
         ],
         temperature=0.3
     )
     return r.choices[0].message.content.strip()
 
-# ================== MEMORY ==================
-def save_memory(user_id, question):
-    mem = user_memory.get(user_id, [])
-    mem.append(question)
-    user_memory[user_id] = mem[-MAX_MEMORY:]
-
 # ================== TELEGRAM ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🐝 Asalarichilik AI bot\nUZ / RU / EN\nSavol bering."
-    )
+    user_stats.add(update.effective_user.id)
+    await update.message.reply_text("🐝 Asalarichilik AI botga xush kelibsiz!")
 
-async def reindex(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-    await update.message.reply_text("♻️ Index yangilanmoqda...")
-    build_index()
-    await update.message.reply_text("✅ Tayyor")
+    await update.message.reply_text(
+        f"📊 Foydalanuvchilar: {len(user_stats)}\n"
+        f"📩 Savollar: {len(questions_log)}"
+    )
 
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    q = update.message.text.strip()
-
-    await update.message.reply_text("⏳ O‘ylayapman...")
+    q = update.message.text
+    user_stats.add(uid)
 
     ans = ai_answer(uid, q)
-    save_memory(uid, q)
+    questions_log.append(q)
 
-    for i in range(0, len(ans), 3500):
-        await update.message.reply_text(ans[i:i+3500])
+    # ADMIN LOG
+    await context.bot.send_message(
+        ADMIN_ID,
+        f"👤 USER: {uid}\n🕒 {datetime.now()}\n❓ {q}\n✅ {ans}"
+    )
+
+    await update.message.reply_text(ans)
 
 # ================== MAIN ==================
 if __name__ == "__main__":
@@ -279,8 +211,8 @@ if __name__ == "__main__":
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("reindex", reindex))
+    app.add_handler(CommandHandler("stats", stats))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
 
-    print("🐝 Asalarichilik AI Telegram bot ishga tushdi")
+    print("🐝 BOT ISHGA TUSHDI")
     app.run_polling()
