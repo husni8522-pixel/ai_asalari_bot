@@ -1,8 +1,8 @@
 python-telegram-bot==20.7
-python-dotenv
 openai
 faiss-cpu
 numpy
+python-dotenv
 langdetect
-python-docx
 pypdf
+python-docx
