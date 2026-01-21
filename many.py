@@ -4,12 +4,13 @@ import faiss
 import numpy as np
 from dotenv import load_dotenv
 from langdetect import detect
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
     CommandHandler,
     ContextTypes,
+    CallbackQueryHandler,
     filters
 )
 from openai import OpenAI
@@ -21,7 +22,6 @@ from datetime import datetime
 DATA_DIR = "data"
 INDEX_FILE = "index.faiss"
 META_FILE = "meta.pkl"
-
 CHUNK_SIZE = 1000
 BATCH_SIZE = 32
 TOP_K = 8
@@ -39,9 +39,10 @@ if not BOT_TOKEN or not OPENAI_KEY:
 client = OpenAI(api_key=OPENAI_KEY)
 
 # ================== MEMORY & STATS ==================
-user_memory = {}
-user_stats = set()
-questions_log = []
+user_memory = {}       # uid -> last MAX_MEMORY questions
+user_lang = {}         # uid -> selected language
+user_stats = set()     # unique user ids
+questions_log = []     # all questions
 
 # ================== LANGUAGE ==================
 def detect_lang(text):
@@ -58,46 +59,112 @@ def detect_lang(text):
 # ================== BASIC CHAT ==================
 def basic_chat(text):
     t = text.lower()
-
     owner_uz = "Mening hujayinim Husniddin Zaripov, u juda yaxshi inson."
     owner_ru = "Мой хозяин — Хусниддин Зарипов, он очень хороший человек."
     owner_en = "My owner is Husniddin Zaripov. He is a very good person."
 
-    if any(w in t for w in ["salom", "assalomu", "hello", "hi", "привет", "здравствуйте"]):
-        return {
-            "uz": "Assalomu alaykum 😊 Savolingizni yozing.",
-            "ru": "Здравствуйте 😊 Задайте ваш вопрос.",
-            "en": "Hello 😊 Please ask your question."
-        }
+    greetings = ["salom","assalomu","hello","hi","привет","здравствуйте"]
+    who_are = ["kimsan","kim sen","who are you","кто ты"]
+    creator = ["kim yaratgan","kim tuzgan","kim ixtiro","owner","создал","invented"]
+    phone = ["telefon","номер","phone","raqaming"]
 
-    if any(w in t for w in ["kimsan", "kim sen", "who are you", "кто ты"]):
-        return {
-            "uz": "Men asalarichilik bo‘yicha aqlli yordamchi botman 🐝",
-            "ru": "Я умный бот-помощник по пчеловодству 🐝",
-            "en": "I am an intelligent beekeeping assistant bot 🐝"
-        }
-
-    if any(w in t for w in ["kim yaratgan", "kim tuzgan", "kim ixtiro", "owner", "создал", "invented"]):
-        return {
-            "uz": owner_uz,
-            "ru": owner_ru,
-            "en": owner_en
-        }
-
-    if any(w in t for w in ["telefon", "номер", "phone", "raqaming"]):
-        return {
-            "uz": "📞 Telefon raqam: +998973850026",
-            "ru": "📞 Номер телефона: +998973850026",
-            "en": "📞 Phone number: +998973850026"
-        }
-
+    if any(w in t for w in greetings):
+        return {"uz":"Assalomu alaykum 😊 Savolingizni yozing.",
+                "ru":"Здравствуйте 😊 Задайте ваш вопрос.",
+                "en":"Hello 😊 Please ask your question."}
+    if any(w in t for w in who_are):
+        return {"uz":"Men asalarichilik bo‘yicha aqlli yordamchi botman 🐝",
+                "ru":"Я умный бот-помощник по пчеловодству 🐝",
+                "en":"I am an intelligent beekeeping assistant bot 🐝"}
+    if any(w in t for w in creator):
+        return {"uz":owner_uz,"ru":owner_ru,"en":owner_en}
+    if any(w in t for w in phone):
+        return {"uz":"📞 Telefon raqam: +998973850026",
+                "ru":"📞 Номер телефона: +998973850026",
+                "en":"📞 Phone number: +998973850026"}
     return None
 
 # ================== ASALARICHILIK ==================
-ASALARI_WORDS = ["asal", "ari", "varroa", "qirolicha", "bee", "honey", "пчела", "мёд"]
+ASALARI_WORDS = [
+    # ---------- ASOSIY ----------
+"ari","arilar","asal","asalarichilik","asalarichi",
+"ари","арилар","асал","асаларичилик","асаларичи",
+"bee","bees","honey","beekeeping","beekeeper",
+"пчела","пчёлы","мёд","пчеловодство","пчеловод",
+
+# ---------- ARI TURLARI ----------
+"qirolicha","ona ari","ishchi ari","erkak ari","ari oilasi",
+"қиролича","она ари","ишчи ари","эркак ари","ари оиласи",
+"queen bee","worker bee","drone bee","bee colony",
+"матка","рабочая пчела","трутень","пчелиная семья",
+
+# ---------- UYALAR ----------
+"ari uyasi","ari uyalari","katta uya","kichik uya","ko‘p qavatli uya",
+"dadan","langstroth","rut","nukleus","bo‘linma uya",
+"ари уяси","катта уя","кичик уя","кўп қаватли уя",
+"улей","многокорпусный улей","лежак","дадан",
+"hive","beehive","langstroth hive","dadant hive","nucleus hive",
+
+# ---------- UYA QISMLARI ----------
+"ramka","ramkalar","katak","sota","panjara",
+"asos","mumli asos","asali panjara",
+"рамка","рамки","соты","вощина","разделительная решётка",
+"frame","frames","honeycomb","wax foundation","queen excluder",
+
+# ---------- JIHOZLAR ----------
+"asalarichi kiyimi","niqob","qo‘lqop","tutatuvchi",
+"asal ajratgich","asal ekstraktori","asal pichog‘i",
+"асаларичи кийими","ниқоб","қўлқоп","тутатувчи",
+"дымарь","медогонка","нож для распечатки",
+"beekeeper suit","veil","gloves","smoker","honey extractor",
+
+# ---------- MAHSULOTLAR ----------
+"asal","mum","propolis","perga","gulchang","qirollik suti","ari zahri",
+"асал","мум","прополис","перга","гулчанг","маточное молочко",
+"honey","wax","propolis","bee bread","pollen","royal jelly",
+
+# ---------- KASALLIKLAR ----------
+"varroa","nosema","akarapidoz","amerikan chirishi","yevropa chirishi",
+"virus","zamburug‘","ari kasalligi",
+"варроа","нозема","акарапидоз","гнилец","вирус","грибок",
+"varroa mite","nosema disease","american foulbrood","viral disease",
+
+# ---------- DAVOLASH ----------
+"davolash","profilaktika","dori","kimyoviy davolash","organik davolash",
+"oksalat kislota","formik kislota","timol",
+"даволаш","профилактика","дори","щавелевая кислота","тимол",
+"treatment","prevention","medicine","oxalic acid","formic acid",
+
+# ---------- OZIQALANTIRISH ----------
+"oziqlantirish","shakar","sirop","kandi","bahorgi oziqlantirish",
+"озиқлантириш","шакар","сироп","канди",
+"feeding","sugar","syrup","candy",
+
+# ---------- PARVARISH ----------
+"qishlatish","yozlatish","parvarish","ventilyatsiya","izolyatsiya",
+"қишлатиш","парвариш","вентиляция",
+"wintering","care","ventilation",
+
+# ---------- ISHLAB CHIQARISH ----------
+"asal yig‘ish","asal olish","asal ajratish","asal sifati","filtrlash",
+"асал йиғиш","асал олиш","асал сифати",
+"honey harvesting","honey extraction","honey quality",
+]
 
 def is_asalari(text):
-    return any(w in text.lower() for w in ASALARI_WORDS)
+    t = text.lower()
+    return any(w in t for w in ASALARI_WORDS)
+
+# ================== MEMORY ==================
+def save_memory(uid, q):
+    mem = user_memory.get(uid, [])
+    mem.append(q)
+    user_memory[uid] = mem[-MAX_MEMORY:]
+
+def is_asalari_memory(uid, q):
+    mem = user_memory.get(uid, [])
+    texts = mem + [q]
+    return any(is_asalari(t) for t in texts)
 
 # ================== FILE READ ==================
 def read_file(path):
@@ -119,7 +186,7 @@ def build_index():
         if f.endswith((".pdf", ".docx", ".txt")):
             text = read_file(os.path.join(DATA_DIR, f))
             for c in chunk_text(text):
-                if len(c) > 50 and is_asalari(c):
+                if len(c.strip()) > 50 and is_asalari(c):
                     docs.append(c)
 
     vectors = []
@@ -130,11 +197,15 @@ def build_index():
         )
         vectors.extend([d.embedding for d in r.data])
 
+    if not vectors:
+        raise RuntimeError("❌ Index uchun hech qanday hujjat topilmadi")
+
     index = faiss.IndexFlatL2(len(vectors[0]))
     index.add(np.array(vectors).astype("float32"))
 
     faiss.write_index(index, INDEX_FILE)
     pickle.dump(docs, open(META_FILE, "wb"))
+    print(f"✅ Index yaratildi: {len(docs)} chunklar")
 
 def search_docs(q):
     index = faiss.read_index(INDEX_FILE)
@@ -150,17 +221,17 @@ def search_docs(q):
 
 # ================== AI ANSWER ==================
 def ai_answer(uid, q):
-    lang = detect_lang(q)
+    lang = user_lang.get(uid, detect_lang(q))
 
     basic = basic_chat(q)
     if basic:
         return basic[lang]
 
-    if not is_asalari(q):
+    if not is_asalari_memory(uid, q):
         return {
-            "uz": "🐝 Bu bot asalarichilik uchun mo‘ljallangan.",
-            "ru": "🐝 Этот бот предназначен для пчеловодства.",
-            "en": "🐝 This bot is for beekeeping only."
+            "uz":"🐝 Bu bot faqat asalarichilik bo‘yicha savollar uchun.",
+            "ru":"🐝 Этот бот предназначен для пчеловодства.",
+            "en":"🐝 This bot is for beekeeping only."
         }[lang]
 
     ctx = "\n".join(search_docs(q))
@@ -168,8 +239,8 @@ def ai_answer(uid, q):
     r = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
-            {"role": "system", "content": "You are an expert beekeeper."},
-            {"role": "user", "content": f"{ctx}\n\nSavol: {q}"}
+            {"role":"system","content":"You are an expert beekeeper."},
+            {"role":"user","content":f"{ctx}\n\nSavol: {q}"}
         ],
         temperature=0.3
     )
@@ -177,8 +248,25 @@ def ai_answer(uid, q):
 
 # ================== TELEGRAM ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_stats.add(update.effective_user.id)
-    await update.message.reply_text("🐝 Asalarichilik AI botga xush kelibsiz!")
+    uid = update.effective_user.id
+    user_stats.add(uid)
+
+    # Til tanlash tugmalari
+    keyboard = [
+        [InlineKeyboardButton("🇺🇿 UZ", callback_data="lang_uz"),
+         InlineKeyboardButton("🇷🇺 RU", callback_data="lang_ru"),
+         InlineKeyboardButton("🇬🇧 EN", callback_data="lang_en")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("🐝 Tilni tanlang / Выберите язык / Select language:", reply_markup=reply_markup)
+
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    uid = query.from_user.id
+    lang = query.data.split("_")[1]
+    user_lang[uid] = lang
+    await query.edit_message_text(text=f"✅ Til tanlandi: {lang.upper()}")
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -192,15 +280,17 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     q = update.message.text
     user_stats.add(uid)
+    questions_log.append(q)
+    save_memory(uid, q)
 
     ans = ai_answer(uid, q)
-    questions_log.append(q)
 
-    # ADMIN LOG
-    await context.bot.send_message(
-        ADMIN_ID,
-        f"👤 USER: {uid}\n🕒 {datetime.now()}\n❓ {q}\n✅ {ans}"
-    )
+    # Adminga log
+    if ADMIN_ID:
+        await context.bot.send_message(
+            ADMIN_ID,
+            f"👤 USER: {uid}\n🕒 {datetime.now()}\n❓ {q}\n✅ {ans}"
+        )
 
     await update.message.reply_text(ans)
 
@@ -211,8 +301,9 @@ if __name__ == "__main__":
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button))
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
 
-    print("🐝 BOT ISHGA TUSHDI")
+    print("🐝 Bot ishga tushdi")
     app.run_polling()
