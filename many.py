@@ -26,7 +26,7 @@ META_FILE = "meta.pkl"
 CHUNK_SIZE = 1000
 BATCH_SIZE = 32
 TOP_K = 8
-MAX_MEMORY = 5
+MAX_MEMORY = 5  # kontekst uchun maksimal savol soni
 
 # ================== LOAD ENV ==================
 load_dotenv()
@@ -41,6 +41,7 @@ user_memory = {}      # user_id -> savollar
 questions_log = []    # savollar logi
 user_stats = set()    # user_id lar
 chat_log = {}         # chat_id -> {"title": str, "type": str}
+user_language = {}    # user_id -> til (uz/ru/en)
 
 # ================== LANGUAGE ==================
 def detect_lang(text):
@@ -55,54 +56,90 @@ def detect_lang(text):
         return "uz"
 
 # ================== BASIC CHAT ==================
-def basic_chat(text):
+def basic_chat(text, lang="uz"):
     t = text.lower()
     if any(w in t for w in ["salom", "assalomu", "hello", "hi", "привет"]):
-        return {
+        greetings = {
             "uz": "Assalomu alaykum 😊 Savolingizni yozing.",
             "ru": "Здравствуйте 😊 Задайте вопрос.",
             "en": "Hello 😊 Ask your question."
         }
+        return greetings.get(lang, greetings["uz"])
     return None
 
 # ================== ASALARI ==================
 ASALARI_WORDS = [
-    "ari","arilar","asal","asalarichilik","asalarichi",
-    "ари","арилар","асал","асаларичилик","асаларичи",
-    "bee","bees","honey","beekeeping","beekeeper",
-    "пчела","пчёлы","мёд","пчеловодство","пчеловод",
-    "qirolicha","ona ari","ishchi ari","erkak ari","ari oilasi",
-    "қиролича","она ари","ишчи ари","эркак ари","ари оиласи",
-    "queen bee","worker bee","drone bee","bee colony",
-    "матка","рабочая пчела","трутень","пчелиная семья",
-    "ari uyasi","ari uyalari","katta uya","kichik uya","ko‘p qavatli uya",
-    "dadan","langstroth","rut","nukleus","bo‘linma uya",
-    "ари уяси","катта уя","кичик уя","кўп қаватли уя",
-    "улей","многокорпусный улей","лежак","дадан",
-    "hive","beehive","langstroth hive","dadant hive","nucleus hive",
-    "ramka","ramkalar","katak","sota","panjara",
-    "asos","mumli asos","asali panjara",
-    "рамка","рамки","соты","вощина","разделительная решётка",
-    "frame","frames","honeycomb","wax foundation","queen excluder",
-    "asalarichi kiyimi","niqob","qo‘lqop","tutatuvchi",
-    "asal ajratgich","asal ekstraktori","asal pichog‘i",
-    "асаларичи кийими","ниқоб","қўлқоп","тутатувчи",
-    "дымарь","медогонка","нож для распечатки",
-    "beekeeper suit","veil","gloves","smoker","honey extractor",
-    "asal","mum","propolis","perga","gulchang","qirollik suti","ari zahri",
-    "асал","мум","прополис","перга","гулчанг","маточное молочко",
-    "honey","wax","propolis","bee bread","pollen","royal jelly",
-    "varroa","nosema","akarapidoz","amerikan chirishi","yevropa chirishi",
-    "virus","zamburug‘","ari kasalligi",
-    "варроа","нозема","акарапидоз","гнилец","вирус","грибок",
-    "varroa mite","nosema disease","american foulbrood","viral disease",
-    "davolash","profilaktika","dori","kimyoviy davolash","organik davolash",
-    "oksalat kislota","formik kislota","timol",
-    "даволаш","профилактика","дори","щавелевая кислота","тимол",
-    "treatment","prevention","medicine","oxalic acid","formic acid",
-    "oziqlantirish","shakar","sirop","kandi","bahorgi oziqlantirish",
-    "озиқлантириш","шакар","сироп","канди",
-    "feeding","sugar","syrup","candy",
+    # ===== UZBEKCHA =====
+"ari","arilar","asal","asalarichilik","asalarichi","ari oilasi","qirolicha","ona ari","ishchi ari","erkak ari",
+"matka","truten","ari uyasi","katta uya","kichik uya","ko‘p qavatli uya","bo‘linma uya","ramka","katak","sota","panjara",
+"mumli asos","asali panjara","asal ajratgich","asal ekstraktori","asal pichog‘i","asalarichi kiyimi","niqob","qo‘lqop",
+"tutatuvchi","dimar","medogonka","ari zahri","qirollik suti","perga","gulchang","propolis","mum","honeycomb",
+"oziqlantirish","shakar","sirop","kandi","bahorgi oziqlantirish","kuzgi oziqlantirish","qandari","tog‘ ari","suvli ari",
+"quyoshli ari","italyanari","karlik ari","kafkasari","rus ari","yevropeysari","karniyari","himalayari","afrikari",
+"medonosari","yovvoyi ari","asl ari","o‘zbek ari","qora ari","shakarli ari","o‘rta yevropalik ari",
+"davolash","profilaktika","dori","kimyoviy davolash","organik davolash","oksalat kislota","formik kislota","timol",
+"kasalliklar","varroa","nosema","akarapidoz","amerikan chirishi","yevropa chirishi","virus","zamburug‘",
+"ari kasalligi","jarayonlar","buzilishni oldini olish","samaradorlik","honey harvest","swarm prevention","feeding syrup",
+"nectar collection","pollen collection","queen marking","brood inspection","colony management","hive inspection",
+"queen cage","honey frame","brood frame","wax frame","foundation sheet","cappings","supers","brood box","honey super",
+"apiary","beekeeper journal","inspection report","nectar flow","honey flow","protein supplement","bee genetics",
+"bee space","uncapping fork","honey gate","hive tool","bee brush","bee feeder","swarm trap","swarm box","nectar trap",
+"pollination","queen rearing","artificial insemination","colony splitting","winter preparation","spring preparation",
+"feeding candy","feeding syrup","feeding pollen","feeding protein","wax foundation replacement","frame rotation",
+"queen introduction","drone management","varroa treatment","nosema treatment","american foulbrood treatment",
+"european foulbrood treatment","wax moth treatment","hive ventilation","temperature control","humidity control",
+"smoker management","medogonka cleaning","extractor maintenance","bee suit maintenance","gloves cleaning","veil cleaning",
+"bee health check","disease prevention","pollen analysis","honey analysis","royal jelly harvesting","bee venom collection",
+"bee venom extraction","propagation","queen selection","swarm capture","swarm relocation","colony boosting",
+"bee identification","apiary mapping","hive numbering","hive labelling","inspection schedule","feed schedule",
+"winter feeding","summer feeding","autumn feeding","spring feeding","nectar monitoring","pollen monitoring",
+"beekeeping records","colony performance","honey production","wax production","propolis production","perga storage",
+"honey storage","wax storage","hive hygiene","apiary hygiene","hive spacing","apiary layout","swarm behavior",
+"bee behavior","foraging behavior","colony development","brood development","queen development","drone development",
+"hive maintenance","frame repair","foundation repair","honey extraction","wax rendering","beekeeping equipment","apiary security",
+# ===== RUSCHA =====
+"пчела","пчёлы","мёд","пчеловодство","пчеловод","пчелиная семья","матка","трутень","рабочая пчела","улий",
+"многокорпусный улей","рамка","соты","вощина","разделительная решётка","медогонка","пчелиная одежда","маска",
+"перчатки","тутатучий","дымарь","нож для распечатки","перга","гулчан","прополис","воск","маточное молочко",
+"кормление","сахар","сироп","кормовая паста","весенняя подкормка","осенняя подкормка","дикая пчела",
+"итальянская пчела","карликовая пчела","кавказская пчела","русская пчела","европейская пчела","карнийская пчела",
+"гималайская пчела","африканская пчела","медоносная пчела","местная пчела","чёрная пчела","солнечная пчела","водная пчела",
+"лечение","профилактика","лекарство","химическое лечение","органическое лечение","оксаловая кислота","формическая кислота","тимол",
+"болезни","варроа","нозема","акарапидоз","американский гнилец","европейский гнилец","вирус","грибок","процесс","сбор мёда",
+"предотвращение роения","сироп для кормления","сбор нектара","сбор пыльцы","отметка матки","инспекция расплода","управление семьей",
+"осмотр улья","клетка для матки","рамка с медом","рамка с расплодом","рамка с вощиной","вощина","суперы","коробка с расплодом",
+"супер с медом","пасека","журнал пчеловода","отчет об инспекции","поток нектара","поток меда","протеиновая добавка",
+"генетика пчёл","пространство пчел","вилка для распечатки","ворота для меда","инструмент для улья","щетка для пчел","кормушка для пчёл",
+"ловушка для роя","коробка для роя","ловушка для нектара","опыление","разведение маток","искусственное осеменение","деление семьи",
+"подготовка к зиме","подготовка к весне","кормление сахаром","кормление сиропом","кормление пыльцой","кормление белком",
+"замена вощины","поворот рамки","введение матки","управление трутнями","лечение варроа","лечение ноземы","лечение американского гнильца",
+"лечение европейского гнильца","лечение вощинной моли","вентиляция улья","контроль температуры","контроль влажности","уход за дымарем",
+"чистка медогонки","обслуживание экстрактора","уход за костюмом","чистка перчаток","чистка маски","проверка здоровья пчёл",
+"профилактика заболеваний","анализ пыльцы","анализ мёда","сбор маточного молочка","сбор пчелиного яда","экстракция пчелиного яда",
+"размножение","отбор маток","поймать рой","переселение роя","усиление семьи","идентификация пчёл","карта пасеки",
+"нумерация ульев","маркировка ульев","график инспекции","график кормления","зимнее кормление","летнее кормление",
+"осеннее кормление","весеннее кормление","мониторинг нектара","мониторинг пыльцы","записи пчеловодства","производительность семьи",
+"производство мёда","производство воска","производство прополиса","хранение перги","хранение мёда","хранение воска",
+"гигиена улья","гигиена пасеки","размещение ульев","планировка пасеки","поведение роя","поведение пчёл",
+"поведение при сборе нектара","развитие семьи","развитие расплода","развитие матки","развитие трутней","обслуживание улья",
+"ремонт рамки","ремонт вощины","сбор мёда","переработка воска","оборудование пасеки","безопасность пасеки",
+# ===== ENGLISH =====
+"bee","bees","honey","beekeeping","beekeeper","bee colony","queen bee","worker bee","drone bee","hive","beehive","nucleus hive",
+"langstroth hive","frames","honeycomb","wax foundation","queen excluder","beekeeper suit","veil","gloves","smoker",
+"honey extractor","propolis","royal jelly","bee bread","pollen","wax","feeding","sugar","syrup","candy","spring feeding",
+"autumn feeding","candy feeding","drone bee","queen rearing","artificial insemination","colony splitting","winter prep",
+"spring prep","nectar collection","pollen collection","swarm prevention","swarm capture","swarm relocation","colony boosting",
+"bee identification","apiary mapping","hive numbering","hive labelling","inspection schedule","feed schedule","winter feeding",
+"summer feeding","autumn feeding","spring feeding","nectar monitoring","pollen monitoring","beekeeping records","colony performance",
+"honey production","wax production","propolis production","perga storage","honey storage","wax storage","hive hygiene","apiary hygiene",
+"hive spacing","apiary layout","swarm behavior","bee behavior","foraging behavior","colony development","brood development",
+"queen development","drone development","hive maintenance","frame repair","foundation repair","honey extraction","wax rendering",
+"beekeeping equipment","apiary security","varroa treatment","nosema treatment","american foulbrood treatment","european foulbrood treatment",
+"wax moth treatment","hive ventilation","temperature control","humidity control","smoker maintenance","medogonka cleaning",
+"extractor maintenance","bee suit maintenance","gloves cleaning","veil cleaning","bee health check","disease prevention",
+"pollen analysis","honey analysis","royal jelly harvesting","bee venom collection","bee venom extraction","propagation",
+"queen selection","colony inspection","honey frame","brood frame","wax frame","foundation sheet","cappings","supers","brood box",
+"honey super","queen marking","bee brush","bee feeder","swarm trap","swarm box","nectar trap","pollination"
 ]
 
 def is_asalari(text):
@@ -151,43 +188,60 @@ def search_docs(q):
     return [texts[i] for i in I[0]]
 
 # ================== AI ANSWER ==================
-def ai_answer(uid, q):
-    lang = detect_lang(q)
-    basic = basic_chat(q)
+def ai_answer(uid, q, lang="uz"):
+    # Basic greeting
+    basic = basic_chat(q, lang)
     if basic:
-        return basic[lang]
+        return basic
 
     if uid not in user_memory:
         user_memory[uid] = []
 
-    if not is_asalari(q):
-        return {
+    # Asalarichilik mavzusiga tegishli yoki kontekst mavjud bo‘lsa javob
+    if not is_asalari(q) and not user_memory[uid]:
+        no_info = {
             "uz": "🐝 Bu bot faqat asalarichilik uchun.",
             "ru": "🐝 Бот только для пчеловодства.",
             "en": "🐝 This bot is for beekeeping only."
-        }[lang]
+        }
+        return no_info.get(lang, no_info["uz"])
 
+    # Kontekstni saqlash – maksimal MAX_MEMORY savol
     user_memory[uid].append(q)
+    if len(user_memory[uid]) > MAX_MEMORY:
+        user_memory[uid] = user_memory[uid][-MAX_MEMORY:]
 
-    ctx = "\n".join(search_docs(q))
-    if not ctx:
-        return {
+    # Oldingi savollarni birlashtirish
+    context_text = "\n".join(user_memory[uid]) + "\n" + "\n".join(search_docs(q))
+
+    if not context_text.strip():
+        not_found = {
             "uz": "❌ Ma’lumot topilmadi.",
             "ru": "❌ Информация не найдена.",
             "en": "❌ No information found."
-        }[lang]
+        }
+        return not_found.get(lang, not_found["uz"])
 
     r = client.chat.completions.create(
         model="gpt-4.1-mini",
-        messages=[{"role": "system", "content": "You are an expert beekeeper."},
-                  {"role": "user", "content": f"{ctx}\n\nSavol: {q}"}],
+        messages=[
+            {"role": "system", "content": "You are an expert beekeeper."},
+            {"role": "user", "content": f"{context_text}\n\nSavol: {q}"}
+        ],
         temperature=0.3
     )
     return r.choices[0].message.content.strip()
 
-# ================== BUTTON ==================
+# ================== BUTTONS ==================
 def reset_button():
     return InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Yangi savol", callback_data="reset")]])
+
+def lang_buttons():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🇺🇿 Uzbek", callback_data="lang_uz")],
+        [InlineKeyboardButton("🇷🇺 Russian", callback_data="lang_ru")],
+        [InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")]
+    ])
 
 # ================== LOG CHAT ==================
 async def log_chat(update: Update):
@@ -203,16 +257,30 @@ async def log_chat(update: Update):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await log_chat(update)
     await update.message.reply_text(
-        "🐝 Asalarichilik AI botga xush kelibsiz!",
-        reply_markup=reset_button()
+        "Salom! Iltimos, tilni tanlang / Please choose a language / Пожалуйста, выберите язык:",
+        reply_markup=lang_buttons()
     )
+
+async def lang_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    uid = query.from_user.id
+    lang = query.data.split("_")[1]  # uz/ru/en
+    user_language[uid] = lang
+    await query.answer()
+    greetings = {
+        "uz": "Assalomu alaykum! Savolingizni yozing 😊",
+        "ru": "Здравствуйте! Задайте свой вопрос 😊",
+        "en": "Hello! Ask your question 😊"
+    }
+    await query.message.reply_text(greetings.get(lang, greetings["uz"]), reply_markup=reset_button())
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await log_chat(update)
     uid = update.effective_user.id
+    lang = user_language.get(uid, "uz")  # default uz
     q = update.message.text.strip()
     questions_log.append(q)
-    ans = ai_answer(uid, q)
+    ans = ai_answer(uid, q, lang)
 
     await update.message.reply_text(ans, reply_markup=reset_button())
 
@@ -264,6 +332,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(CallbackQueryHandler(reset_callback, pattern="^reset$"))
+    app.add_handler(CallbackQueryHandler(lang_callback, pattern="^lang_"))
 
     print("🐝 BOT ISHGA TUSHDI")
     app.run_polling()
