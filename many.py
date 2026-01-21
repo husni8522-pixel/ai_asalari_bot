@@ -20,6 +20,7 @@ from telegram.ext import (
 from openai import OpenAI
 from docx import Document
 from pypdf import PdfReader
+from datetime import datetime
 
 # ================== CONFIG ==================
 DATA_DIR = "data"
@@ -39,17 +40,17 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 
 client = OpenAI(api_key=OPENAI_KEY)
 
-# ================== MEMORY ==================
-user_memory = {}  # user_id -> savollar
+# ================== MEMORY & STATS ==================
+user_memory = {}       # user_id -> savollar
+questions_log = []     # barcha savollar logi
+user_stats = set()     # foydalanuvchilar idlari
 
 # ================== LANGUAGE ==================
 def detect_lang(text):
     try:
         l = detect(text)
-        if l.startswith("ru"):
-            return "ru"
-        if l.startswith("en"):
-            return "en"
+        if l.startswith("ru"): return "ru"
+        if l.startswith("en"): return "en"
         return "uz"
     except:
         return "uz"
@@ -67,51 +68,42 @@ def basic_chat(text):
 
 # ================== ASALARI ==================
 ASALARI_WORDS = [
-    # ---------- ASOSIY ----------
-"ari","arilar","asal","asalarichilik","asalarichi",
-"ари","арилар","асал","асаларичилик","асаларичи",
-"bee","bees","honey","beekeeping","beekeeper",
-"пчела","пчёлы","мёд","пчеловодство","пчеловод",
-# ---------- ARI TURLARI ----------
-"qirolicha","ona ari","ishchi ari","erkak ari","ari oilasi",
-"қиролича","она ари","ишчи ари","эркак ари","ари оиласи",
-"queen bee","worker bee","drone bee","bee colony",
-"матка","рабочая пчела","трутень","пчелиная семья",
-# ---------- UYALAR ----------
-"ari uyasi","ari uyalari","katta uya","kichik uya","ko‘p qavatli uya",
-"dadan","langstroth","rut","nukleus","bo‘linma uya",
-"ари уяси","катта уя","кичик уя","кўп қаватли уя",
-"улей","многокорпусный улей","лежак","дадан",
-"hive","beehive","langstroth hive","dadant hive","nucleus hive",
-# ---------- UYA QISMLARI ----------
-"ramka","ramkalar","katak","sota","panjara",
-"asos","mumli asos","asali panjara",
-"рамка","рамки","соты","вощина","разделительная решётка",
-"frame","frames","honeycomb","wax foundation","queen excluder",
-# ---------- JIHOZLAR ----------
-"asalarichi kiyimi","niqob","qo‘lqop","tutatuvchi",
-"asal ajratgich","asal ekstraktori","asal pichog‘i",
-"асаларичи кийими","ниқоб","қўлқоп","тутатувчи",
-"дымарь","медогонка","нож для распечатки",
-"beekeeper suit","veil","gloves","smoker","honey extractor",
-# ---------- MAHSULOTLAR ----------
-"asal","mum","propolis","perga","gulchang","qirollik suti","ari zahri",
-"асал","мум","прополис","перга","гулчанг","маточное молочко",
-"honey","wax","propolis","bee bread","pollen","royal jelly",
-# ---------- KASALLIKLAR ----------
-"varroa","nosema","akarapidoz","amerikan chirishi","yevropa chirishi",
-"virus","zamburug‘","ari kasalligi",
-"варроа","нозема","акарапидоз","гнилец","вирус","грибок",
-"varroa mite","nosema disease","american foulbrood","viral disease",
-# ---------- DAVOLASH ----------
-"davolash","profilaktika","dori","kimyoviy davolash","organik davolash",
-"oksalat kislota","formik kislota","timol",
-"даволаш","профилактика","дори","щавелевая кислота","тимол",
-"treatment","prevention","medicine","oxalic acid","formic acid",
-# ---------- OZIQALANTIRISH ----------
-"oziqlantirish","shakar","sirop","kandi","bahorgi oziqlantirish",
-"озиқлантириш","шакар","сироп","канди",
-"feeding","sugar","syrup","candy",
+    "ari","arilar","asal","asalarichilik","asalarichi",
+    "ари","арилар","асал","асаларичилик","асаларичи",
+    "bee","bees","honey","beekeeping","beekeeper",
+    "пчела","пчёлы","мёд","пчеловодство","пчеловод",
+    "qirolicha","ona ari","ishchi ari","erkak ari","ari oilasi",
+    "қиролича","она ари","ишчи ари","эркак ари","ари оиласи",
+    "queen bee","worker bee","drone bee","bee colony",
+    "матка","рабочая пчела","трутень","пчелиная семья",
+    "ari uyasi","ari uyalari","katta uya","kichik uya","ko‘p qavatli uya",
+    "dadan","langstroth","rut","nukleus","bo‘linma uya",
+    "ари уяси","катта уя","кичик уя","кўп қаватли уя",
+    "улей","многокорпусный улей","лежак","дадан",
+    "hive","beehive","langstroth hive","dadant hive","nucleus hive",
+    "ramka","ramkalar","katak","sota","panjara",
+    "asos","mumli asos","asali panjara",
+    "рамка","рамки","соты","вощина","разделительная решётка",
+    "frame","frames","honeycomb","wax foundation","queen excluder",
+    "asalarichi kiyimi","niqob","qo‘lqop","tutatuvchi",
+    "asal ajratgich","asal ekstraktori","asal pichog‘i",
+    "асаларичи кийими","ниқоб","қўлқоп","тутатувчи",
+    "дымарь","медогонка","нож для распечатки",
+    "beekeeper suit","veil","gloves","smoker","honey extractor",
+    "asal","mum","propolis","perga","gulchang","qirollik suti","ari zahri",
+    "асал","мум","прополис","перга","гулчанг","маточное молочко",
+    "honey","wax","propolis","bee bread","pollen","royal jelly",
+    "varroa","nosema","akarapidoz","amerikan chirishi","yevropa chirishi",
+    "virus","zamburug‘","ari kasalligi",
+    "варроа","нозема","акарапидоз","гнилец","вирус","грибок",
+    "varroa mite","nosema disease","american foulbrood","viral disease",
+    "davolash","profilaktika","dori","kimyoviy davolash","organik davolash",
+    "oksalat kislota","formik kislota","timol",
+    "даволаш","профилактика","дори","щавелевая кислота","тимол",
+    "treatment","prevention","medicine","oxalic acid","formic acid",
+    "oziqlantirish","shakar","sirop","kandi","bahorgi oziqlantirish",
+    "озиқлантириш","шакар","сироп","канди",
+    "feeding","sugar","syrup","candy",
 ]
 
 def is_asalari(text):
@@ -168,12 +160,6 @@ def ai_answer(uid, q):
     if basic:
         return basic[lang]
 
-    if uid in user_memory:
-        # Agar oldingi savol bo‘lsa, avvalgi konteksti ishlatilmaydi
-        pass
-    else:
-        user_memory[uid] = []
-
     if not is_asalari(q):
         return {
             "uz": "🐝 Bu bot faqat asalarichilik uchun.",
@@ -181,7 +167,9 @@ def ai_answer(uid, q):
             "en": "🐝 This bot is for beekeeping only."
         }[lang]
 
-    user_memory[uid].append(q)
+    user_memory[uid] = [q]  # har safar yangi savol uchun oldingi context tozalanadi
+    questions_log.append(q)
+    user_stats.add(uid)
 
     ctx = "\n".join(search_docs(q))
     if not ctx:
@@ -211,7 +199,19 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     q = update.message.text.strip()
     ans = ai_answer(uid, q)
+
+    # Javobni foydalanuvchiga
     await update.message.reply_text(ans, reply_markup=reset_button())
+
+    # Javobni adminga log sifatida jo'natish
+    if ADMIN_ID:
+        try:
+            await context.bot.send_message(
+                ADMIN_ID,
+                f"👤 USER ID: {uid}\n🕒 {datetime.now()}\n❓ Savol: {q}\n✅ Javob: {ans}"
+            )
+        except Exception as e:
+            print("Admin log yuborishda xato:", e)
 
 async def reset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -229,6 +229,16 @@ async def reindex(update: Update, context: ContextTypes.DEFAULT_TYPE):
     build_index()
     await update.message.reply_text("✅ Indeks tayyor")
 
+# ================== ADMIN STAT ==================
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ Sizda bu komandani ishlatish huquqi yo‘q.")
+        return
+    await update.message.reply_text(
+        f"📊 Foydalanuvchilar: {len(user_stats)}\n"
+        f"📩 Savollar: {len(questions_log)}"
+    )
+
 # ================== MAIN ==================
 if __name__ == "__main__":
     if not os.path.exists(INDEX_FILE):
@@ -237,6 +247,7 @@ if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reindex", reindex))
+    app.add_handler(CommandHandler("stats", stats))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(CallbackQueryHandler(reset_callback, pattern="^reset$"))
 
