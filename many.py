@@ -4,13 +4,12 @@ import faiss
 import numpy as np
 from dotenv import load_dotenv
 from langdetect import detect
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, File
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
     CommandHandler,
     ContextTypes,
-    CallbackQueryHandler,
     filters
 )
 from openai import OpenAI
@@ -22,6 +21,7 @@ from datetime import datetime
 DATA_DIR = "data"
 INDEX_FILE = "index.faiss"
 META_FILE = "meta.pkl"
+
 CHUNK_SIZE = 1000
 BATCH_SIZE = 32
 TOP_K = 8
@@ -34,15 +34,14 @@ OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 
 if not BOT_TOKEN or not OPENAI_KEY:
-    raise RuntimeError("❌ .env da token yoki openai key yo‘q")
+    raise RuntimeError("❌ .env da token yoki OpenAI key yo‘q")
 
 client = OpenAI(api_key=OPENAI_KEY)
 
 # ================== MEMORY & STATS ==================
-user_memory = {}       # uid -> last MAX_MEMORY questions
-user_lang = {}         # uid -> selected language
-user_stats = set()     # unique user ids
-questions_log = []     # all questions
+user_memory = {}  # user_id -> savollar
+user_stats = set()  # foydalanuvchilar
+questions_log = []  # savollar logi
 
 # ================== LANGUAGE ==================
 def detect_lang(text):
@@ -63,25 +62,38 @@ def basic_chat(text):
     owner_ru = "Мой хозяин — Хусниддин Зарипов, он очень хороший человек."
     owner_en = "My owner is Husniddin Zaripov. He is a very good person."
 
-    greetings = ["salom","assalomu","hello","hi","привет","здравствуйте"]
-    who_are = ["kimsan","kim sen","who are you","кто ты"]
-    creator = ["kim yaratgan","kim tuzgan","kim ixtiro","owner","создал","invented"]
-    phone = ["telefon","номер","phone","raqaming"]
+    # Salomlashish
+    if any(w in t for w in ["salom", "assalomu", "hello", "hi", "привет", "здравствуйте"]):
+        return {
+            "uz": "Assalomu alaykum 😊 Savolingizni yozing.",
+            "ru": "Здравствуйте 😊 Задайте ваш вопрос.",
+            "en": "Hello 😊 Please ask your question."
+        }
 
-    if any(w in t for w in greetings):
-        return {"uz":"Assalomu alaykum 😊 Savolingizni yozing.",
-                "ru":"Здравствуйте 😊 Задайте ваш вопрос.",
-                "en":"Hello 😊 Please ask your question."}
-    if any(w in t for w in who_are):
-        return {"uz":"Men asalarichilik bo‘yicha aqlli yordamchi botman 🐝",
-                "ru":"Я умный бот-помощник по пчеловодству 🐝",
-                "en":"I am an intelligent beekeeping assistant bot 🐝"}
-    if any(w in t for w in creator):
-        return {"uz":owner_uz,"ru":owner_ru,"en":owner_en}
-    if any(w in t for w in phone):
-        return {"uz":"📞 Telefon raqam: +998973850026",
-                "ru":"📞 Номер телефона: +998973850026",
-                "en":"📞 Phone number: +998973850026"}
+    # Kim ekanligi
+    if any(w in t for w in ["kimsan", "kim sen", "who are you", "кто ты"]):
+        return {
+            "uz": "Men asalarichilik bo‘yicha aqlli yordamchi botman 🐝",
+            "ru": "Я умный бот-помощник по пчеловодству 🐝",
+            "en": "I am an intelligent beekeeping assistant bot 🐝"
+        }
+
+    # Kim yaratgan
+    if any(w in t for w in ["kim yaratgan", "kim tuzgan", "kim ixtiro", "owner", "создал", "invented"]):
+        return {
+            "uz": owner_uz,
+            "ru": owner_ru,
+            "en": owner_en
+        }
+
+    # Telefon raqam
+    if any(w in t for w in ["telefon", "номер", "phone", "raqaming"]):
+        return {
+            "uz": "📞 Telefon raqam: +998973850026",
+            "ru": "📞 Номер телефона: +998973850026",
+            "en": "📞 Phone number: +998973850026"
+        }
+
     return None
 
 # ================== ASALARICHILIK ==================
@@ -149,22 +161,14 @@ ASALARI_WORDS = [
 "asal yig‘ish","asal olish","asal ajratish","asal sifati","filtrlash",
 "асал йиғиш","асал олиш","асал сифати",
 "honey harvesting","honey extraction","honey quality",
+
+# Oziqlantirish va tayyorlash
+    "oziqlantirish", "shakar", "kandi", "sirop", "siroplar", "bal siropi", "bal shakar", "shakarli yem",
+    "ari oziqlantirish", "ari ovqat", "bal bilan oziqlantirish", "ozuqa", "kand tayyorlash", "asalar ovqati",
 ]
 
 def is_asalari(text):
-    t = text.lower()
-    return any(w in t for w in ASALARI_WORDS)
-
-# ================== MEMORY ==================
-def save_memory(uid, q):
-    mem = user_memory.get(uid, [])
-    mem.append(q)
-    user_memory[uid] = mem[-MAX_MEMORY:]
-
-def is_asalari_memory(uid, q):
-    mem = user_memory.get(uid, [])
-    texts = mem + [q]
-    return any(is_asalari(t) for t in texts)
+    return any(w in text.lower() for w in ASALARI_WORDS)
 
 # ================== FILE READ ==================
 def read_file(path):
@@ -181,13 +185,17 @@ def chunk_text(text):
 
 # ================== INDEX ==================
 def build_index():
+    print("♻️ Indeks qurilmoqda...")
     docs = []
     for f in os.listdir(DATA_DIR):
         if f.endswith((".pdf", ".docx", ".txt")):
             text = read_file(os.path.join(DATA_DIR, f))
             for c in chunk_text(text):
                 if len(c.strip()) > 50 and is_asalari(c):
-                    docs.append(c)
+                    docs.append(c.strip())
+    if not docs:
+        print("❌ Data papkada asalarichilik hujjatlari topilmadi!")
+        return
 
     vectors = []
     for i in range(0, len(docs), BATCH_SIZE):
@@ -197,17 +205,16 @@ def build_index():
         )
         vectors.extend([d.embedding for d in r.data])
 
-    if not vectors:
-        raise RuntimeError("❌ Index uchun hech qanday hujjat topilmadi")
-
     index = faiss.IndexFlatL2(len(vectors[0]))
     index.add(np.array(vectors).astype("float32"))
 
     faiss.write_index(index, INDEX_FILE)
     pickle.dump(docs, open(META_FILE, "wb"))
-    print(f"✅ Index yaratildi: {len(docs)} chunklar")
+    print("✅ Indeks tayyor")
 
 def search_docs(q):
+    if not os.path.exists(INDEX_FILE):
+        return []
     index = faiss.read_index(INDEX_FILE)
     texts = pickle.load(open(META_FILE, "rb"))
 
@@ -221,52 +228,42 @@ def search_docs(q):
 
 # ================== AI ANSWER ==================
 def ai_answer(uid, q):
-    lang = user_lang.get(uid, detect_lang(q))
-
+    lang = detect_lang(q)
     basic = basic_chat(q)
     if basic:
         return basic[lang]
 
-    if not is_asalari_memory(uid, q):
+    if not is_asalari(q):
         return {
-            "uz":"🐝 Bu bot faqat asalarichilik bo‘yicha savollar uchun.",
-            "ru":"🐝 Этот бот предназначен для пчеловодства.",
-            "en":"🐝 This bot is for beekeeping only."
+            "uz": "🐝 Bu bot faqat asalarichilik uchun mo‘ljallangan.",
+            "ru": "🐝 Этот бот предназначен для пчеловодства.",
+            "en": "🐝 This bot is for beekeeping only."
         }[lang]
 
     ctx = "\n".join(search_docs(q))
+    if not ctx:
+        return {
+            "uz": "❌ Bu savol bo‘yicha data papkada ma’lumot topilmadi.",
+            "ru": "❌ По этому вопросу информация в папке data не найдена.",
+            "en": "❌ No information found in data folder for this question."
+        }[lang]
 
     r = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
-            {"role":"system","content":"You are an expert beekeeper."},
-            {"role":"user","content":f"{ctx}\n\nSavol: {q}"}
+            {"role": "system", "content": "You are an expert beekeeper."},
+            {"role": "user", "content": f"{ctx}\n\nSavol: {q}"}
         ],
         temperature=0.3
     )
     return r.choices[0].message.content.strip()
 
-# ================== TELEGRAM ==================
+# ================== TELEGRAM HANDLERS ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    user_stats.add(uid)
-
-    # Til tanlash tugmalari
-    keyboard = [
-        [InlineKeyboardButton("🇺🇿 UZ", callback_data="lang_uz"),
-         InlineKeyboardButton("🇷🇺 RU", callback_data="lang_ru"),
-         InlineKeyboardButton("🇬🇧 EN", callback_data="lang_en")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("🐝 Tilni tanlang / Выберите язык / Select language:", reply_markup=reply_markup)
-
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    uid = query.from_user.id
-    lang = query.data.split("_")[1]
-    user_lang[uid] = lang
-    await query.edit_message_text(text=f"✅ Til tanlandi: {lang.upper()}")
+    user_stats.add(update.effective_user.id)
+    await update.message.reply_text(
+        "🐝 Asalarichilik AI botga xush kelibsiz!\nSavol berishingiz mumkin."
+    )
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -276,22 +273,51 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📩 Savollar: {len(questions_log)}"
     )
 
-async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def reindex(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    await update.message.reply_text("♻️ Index yangilanmoqda...")
+    build_index()
+    await update.message.reply_text("✅ Index tayyor")
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    q = update.message.text
+    q = update.message.text.strip()
     user_stats.add(uid)
     questions_log.append(q)
-    save_memory(uid, q)
 
     ans = ai_answer(uid, q)
 
-    # Adminga log
-    if ADMIN_ID:
-        await context.bot.send_message(
-            ADMIN_ID,
-            f"👤 USER: {uid}\n🕒 {datetime.now()}\n❓ {q}\n✅ {ans}"
-        )
+    # ADMIN LOG
+    await context.bot.send_message(
+        ADMIN_ID,
+        f"👤 USER: {uid}\n🕒 {datetime.now()}\n❓ {q}\n✅ {ans}"
+    )
+    await update.message.reply_text(ans)
 
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    user_stats.add(uid)
+    photo = update.message.photo[-1]
+    file: File = await photo.get_file()
+    path = os.path.join("tmp", f"{photo.file_id}.jpg")
+    os.makedirs("tmp", exist_ok=True)
+    await file.download_to_drive(path)
+    await update.message.reply_text("📷 Rasm qabul qilindi, tahlil qilinmoqda...")
+
+    # AI javob (misol uchun rasmni tavsiflash)
+    r = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": "You are an expert beekeeper."},
+            {"role": "user", "content": f"Bu rasmni tavsifla va agar kasallik bo'lsa qanday davo qilishni ayt:\n{path}"}
+        ],
+        temperature=0.3
+    )
+    ans = r.choices[0].message.content.strip()
+    await context.bot.send_message(ADMIN_ID,
+        f"👤 USER: {uid} (rasm)\n🕒 {datetime.now()}\n✅ {ans}"
+    )
     await update.message.reply_text(ans)
 
 # ================== MAIN ==================
@@ -301,9 +327,10 @@ if __name__ == "__main__":
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button))
     app.add_handler(CommandHandler("stats", stats))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+    app.add_handler(CommandHandler("reindex", reindex))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
-    print("🐝 Bot ishga tushdi")
+    print("🐝 BOT ISHGA TUSHDI")
     app.run_polling()
