@@ -4,11 +4,7 @@ import faiss
 import numpy as np
 from dotenv import load_dotenv
 from langdetect import detect
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
@@ -40,17 +36,20 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 
 client = OpenAI(api_key=OPENAI_KEY)
 
-# ================== MEMORY & STATS ==================
-user_memory = {}       # user_id -> savollar
-questions_log = []     # barcha savollar logi
-user_stats = set()     # foydalanuvchilar idlari
+# ================== MEMORY & LOG ==================
+user_memory = {}      # user_id -> savollar
+questions_log = []    # savollar logi
+user_stats = set()    # user_id lar
+chat_log = {}         # chat_id -> {"title": str, "type": str}
 
 # ================== LANGUAGE ==================
 def detect_lang(text):
     try:
         l = detect(text)
-        if l.startswith("ru"): return "ru"
-        if l.startswith("en"): return "en"
+        if l.startswith("ru"):
+            return "ru"
+        if l.startswith("en"):
+            return "en"
         return "uz"
     except:
         return "uz"
@@ -133,12 +132,10 @@ def build_index():
                     docs.append(c.strip())
     if not docs:
         return
-
     vectors = []
     for i in range(0, len(docs), BATCH_SIZE):
         r = client.embeddings.create(model="text-embedding-3-small", input=docs[i:i+BATCH_SIZE])
         vectors.extend([d.embedding for d in r.data])
-
     index = faiss.IndexFlatL2(len(vectors[0]))
     index.add(np.array(vectors).astype("float32"))
     faiss.write_index(index, INDEX_FILE)
@@ -160,6 +157,9 @@ def ai_answer(uid, q):
     if basic:
         return basic[lang]
 
+    if uid not in user_memory:
+        user_memory[uid] = []
+
     if not is_asalari(q):
         return {
             "uz": "🐝 Bu bot faqat asalarichilik uchun.",
@@ -167,9 +167,7 @@ def ai_answer(uid, q):
             "en": "🐝 This bot is for beekeeping only."
         }[lang]
 
-    user_memory[uid] = [q]  # har safar yangi savol uchun oldingi context tozalanadi
-    questions_log.append(q)
-    user_stats.add(uid)
+    user_memory[uid].append(q)
 
     ctx = "\n".join(search_docs(q))
     if not ctx:
@@ -191,36 +189,51 @@ def ai_answer(uid, q):
 def reset_button():
     return InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Yangi savol", callback_data="reset")]])
 
+# ================== LOG CHAT ==================
+async def log_chat(update: Update):
+    chat = update.effective_chat
+    user_stats.add(update.effective_user.id)
+    if chat.id not in chat_log:
+        chat_log[chat.id] = {
+            "title": chat.title or f"{update.effective_user.first_name}",
+            "type": chat.type
+        }
+
 # ================== HANDLERS ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🐝 Asalarichilik AI botga xush kelibsiz!", reply_markup=reset_button())
+    await log_chat(update)
+    await update.message.reply_text(
+        "🐝 Asalarichilik AI botga xush kelibsiz!",
+        reply_markup=reset_button()
+    )
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await log_chat(update)
     uid = update.effective_user.id
     q = update.message.text.strip()
+    questions_log.append(q)
     ans = ai_answer(uid, q)
 
-    # Javobni foydalanuvchiga
     await update.message.reply_text(ans, reply_markup=reset_button())
 
-    # Javobni adminga log sifatida jo'natish
     if ADMIN_ID:
-        try:
-            await context.bot.send_message(
-                ADMIN_ID,
-                f"👤 USER ID: {uid}\n🕒 {datetime.now()}\n❓ Savol: {q}\n✅ Javob: {ans}"
-            )
-        except Exception as e:
-            print("Admin log yuborishda xato:", e)
+        await context.bot.send_message(
+            ADMIN_ID,
+            f"👤 USER ID: {uid}\n🕒 {datetime.now()}\n❓ Savol: {q}\n✅ Javob: {ans}\n"
+            f"💬 Chat: {chat_log[update.effective_chat.id]['title']} ({chat_log[update.effective_chat.id]['type']})"
+        )
 
 async def reset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     uid = query.from_user.id
     user_memory.pop(uid, None)
     await query.answer()
-    await query.message.reply_text("✅ Context tozalandi. Yangi savol berishingiz mumkin.", reply_markup=reset_button())
+    await query.message.reply_text(
+        "✅ Context tozalandi. Yangi savol berishingiz mumkin.",
+        reply_markup=reset_button()
+    )
 
-# ================== ADMIN REINDEX ==================
+# ================== ADMIN ==================
 async def reindex(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("❌ Sizda bu komandani ishlatish huquqi yo‘q.")
@@ -229,14 +242,15 @@ async def reindex(update: Update, context: ContextTypes.DEFAULT_TYPE):
     build_index()
     await update.message.reply_text("✅ Indeks tayyor")
 
-# ================== ADMIN STAT ==================
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("❌ Sizda bu komandani ishlatish huquqi yo‘q.")
         return
+    chats = "\n".join([f"{v['title']} ({v['type']})" for v in chat_log.values()])
     await update.message.reply_text(
         f"📊 Foydalanuvchilar: {len(user_stats)}\n"
-        f"📩 Savollar: {len(questions_log)}"
+        f"📩 Savollar: {len(questions_log)}\n"
+        f"💬 Guruhlar/kanallar:\n{chats}"
     )
 
 # ================== MAIN ==================
