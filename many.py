@@ -4,13 +4,12 @@ import faiss
 import numpy as np
 from dotenv import load_dotenv
 from langdetect import detect
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, File
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
     CommandHandler,
     ContextTypes,
-    CallbackQueryHandler,
     filters
 )
 from openai import OpenAI
@@ -26,7 +25,7 @@ META_FILE = "meta.pkl"
 CHUNK_SIZE = 1000
 BATCH_SIZE = 32
 TOP_K = 8
-MAX_MEMORY = 5  # kontekst uchun maksimal savol soni
+MAX_MEMORY = 5
 
 # ================== LOAD ENV ==================
 load_dotenv()
@@ -34,14 +33,15 @@ BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 
+if not BOT_TOKEN or not OPENAI_KEY:
+    raise RuntimeError("❌ .env da token yoki OpenAI key yo‘q")
+
 client = OpenAI(api_key=OPENAI_KEY)
 
-# ================== MEMORY & LOG ==================
-user_memory = {}      # user_id -> savollar
-questions_log = []    # savollar logi
-user_stats = set()    # user_id lar
-chat_log = {}         # chat_id -> {"title": str, "type": str}
-user_language = {}    # user_id -> til (uz/ru/en)
+# ================== MEMORY & STATS ==================
+user_memory = {}  # user_id -> savollar
+user_stats = set()  # foydalanuvchilar
+questions_log = []  # savollar logi
 
 # ================== LANGUAGE ==================
 def detect_lang(text):
@@ -56,96 +56,121 @@ def detect_lang(text):
         return "uz"
 
 # ================== BASIC CHAT ==================
-def basic_chat(text, lang="uz"):
+def basic_chat(text):
     t = text.lower()
-    if any(w in t for w in ["salom", "assalomu", "hello", "hi", "привет"]):
-        greetings = {
+    owner_uz = "Mening hujayinim Husniddin Zaripov, u juda yaxshi inson."
+    owner_ru = "Мой хозяин — Хусниддин Зарипов, он очень хороший человек."
+    owner_en = "My owner is Husniddin Zaripov. He is a very good person."
+
+    # Salomlashish
+    if any(w in t for w in ["salom", "assalomu", "hello", "hi", "привет", "здравствуйте"]):
+        return {
             "uz": "Assalomu alaykum 😊 Savolingizni yozing.",
-            "ru": "Здравствуйте 😊 Задайте вопрос.",
-            "en": "Hello 😊 Ask your question."
+            "ru": "Здравствуйте 😊 Задайте ваш вопрос.",
+            "en": "Hello 😊 Please ask your question."
         }
-        return greetings.get(lang, greetings["uz"])
+
+    # Kim ekanligi
+    if any(w in t for w in ["kimsan", "kim sen", "who are you", "кто ты"]):
+        return {
+            "uz": "Men asalarichilik bo‘yicha aqlli yordamchi botman 🐝",
+            "ru": "Я умный бот-помощник по пчеловодству 🐝",
+            "en": "I am an intelligent beekeeping assistant bot 🐝"
+        }
+
+    # Kim yaratgan
+    if any(w in t for w in ["kim yaratgan", "kim tuzgan", "kim ixtiro", "owner", "создал", "invented"]):
+        return {
+            "uz": owner_uz,
+            "ru": owner_ru,
+            "en": owner_en
+        }
+
+    # Telefon raqam
+    if any(w in t for w in ["telefon", "номер", "phone", "raqaming"]):
+        return {
+            "uz": "📞 Telefon raqam: +998973850026",
+            "ru": "📞 Номер телефона: +998973850026",
+            "en": "📞 Phone number: +998973850026"
+        }
+
     return None
 
-# ================== ASALARI ==================
+# ================== ASALARICHILIK ==================
 ASALARI_WORDS = [
-    # ===== UZBEKCHA =====
-"ari","arilar","ob-havo","ob havo","gradus","asal","asalarichilik","asalarichilikni","nimadan","boshlash","kerak","are","asalarichi","ari oilasi","qirolicha","ona ari","ishchi ari","erkak ari",
-"matka","truten","qanday","asalni","buladi","ari uyasi","katta uya","kichik uya","ko‘p qavatli uya","bo‘linma uya","ramka","katak","sota","panjara",
-"mumli asos","asali panjara","asal ajratgich","asal ekstraktori","asal pichog‘i","asalarichi kiyimi","niqob","qo‘lqop",
-"tutatuvchi","dimar","medogonka","ari zahri","qirollik suti","perga","gulchang","propolis","mum","honeycomb",
-"oziqlantirish","shakar","sirop","kandi","bahorgi oziqlantirish","kuzgi oziqlantirish","qandari","tog‘ ari","suvli ari",
-"quyoshli ari","italyanari","karlik ari","kafkasari","rus ari","yevropeysari","karniyari","himalayari","afrikari",
-"medonosari","yovvoyi ari","asl ari","o‘zbek ari","qora ari","shakarli ari","o‘rta yevropalik ari",
-"davolash","profilaktika","dori","kimyoviy davolash","organik davolash","oksalat kislota","formik kislota","timol",
-"kasalliklar","varroa","nosema","akarapidoz","amerikan chirishi","yevropa chirishi","virus","zamburug‘",
-"ari kasalligi","jarayonlar","buzilishni oldini olish","samaradorlik","honey harvest","swarm prevention","feeding syrup",
-"nectar collection","pollen collection","queen marking","brood inspection","colony management","hive inspection",
-"queen cage","honey frame","brood frame","wax frame","foundation sheet","cappings","supers","brood box","honey super",
-"apiary","beekeeper journal","inspection report","nectar flow","honey flow","protein supplement","bee genetics",
-"bee space","uncapping fork","honey gate","hive tool","bee brush","bee feeder","swarm trap","swarm box","nectar trap",
-"pollination","queen rearing","artificial insemination","colony splitting","winter preparation","spring preparation",
-"feeding candy","feeding syrup","feeding pollen","feeding protein","wax foundation replacement","frame rotation",
-"queen introduction","drone management","varroa treatment","nosema treatment","american foulbrood treatment",
-"european foulbrood treatment","wax moth treatment","hive ventilation","temperature control","humidity control",
-"smoker management","medogonka cleaning","extractor maintenance","bee suit maintenance","gloves cleaning","veil cleaning",
-"bee health check","disease prevention","pollen analysis","honey analysis","royal jelly harvesting","bee venom collection",
-"bee venom extraction","propagation","queen selection","swarm capture","swarm relocation","colony boosting",
-"bee identification","apiary mapping","hive numbering","hive labelling","inspection schedule","feed schedule",
-"winter feeding","summer feeding","autumn feeding","spring feeding","nectar monitoring","pollen monitoring",
-"beekeeping records","colony performance","honey production","wax production","propolis production","perga storage",
-"honey storage","wax storage","hive hygiene","apiary hygiene","hive spacing","apiary layout","swarm behavior",
-"bee behavior","foraging behavior","colony development","brood development","queen development","drone development",
-"hive maintenance","frame repair","foundation repair","honey extraction","wax rendering","beekeeping equipment","apiary security",
-# ===== RUSCHA =====
-"пчела","пчёлы","мёд","пчеловодство","пчеловод","пчелиная семья","матка","трутень","рабочая пчела","улий",
-"многокорпусный улей","рамка","соты","вощина","разделительная решётка","медогонка","пчелиная одежда","маска",
-"перчатки","тутатучий","дымарь","нож для распечатки","перга","гулчан","прополис","воск","маточное молочко",
-"кормление","сахар","сироп","кормовая паста","весенняя подкормка","осенняя подкормка","дикая пчела",
-"итальянская пчела","карликовая пчела","кавказская пчела","русская пчела","европейская пчела","карнийская пчела",
-"гималайская пчела","африканская пчела","медоносная пчела","местная пчела","чёрная пчела","солнечная пчела","водная пчела",
-"лечение","профилактика","лекарство","химическое лечение","органическое лечение","оксаловая кислота","формическая кислота","тимол",
-"болезни","варроа","нозема","акарапидоз","американский гнилец","европейский гнилец","вирус","грибок","процесс","сбор мёда",
-"предотвращение роения","сироп для кормления","сбор нектара","сбор пыльцы","отметка матки","инспекция расплода","управление семьей",
-"осмотр улья","клетка для матки","рамка с медом","рамка с расплодом","рамка с вощиной","вощина","суперы","коробка с расплодом",
-"супер с медом","пасека","журнал пчеловода","отчет об инспекции","поток нектара","поток меда","протеиновая добавка",
-"генетика пчёл","пространство пчел","вилка для распечатки","ворота для меда","инструмент для улья","щетка для пчел","кормушка для пчёл",
-"ловушка для роя","коробка для роя","ловушка для нектара","опыление","разведение маток","искусственное осеменение","деление семьи",
-"подготовка к зиме","подготовка к весне","кормление сахаром","кормление сиропом","кормление пыльцой","кормление белком",
-"замена вощины","поворот рамки","введение матки","управление трутнями","лечение варроа","лечение ноземы","лечение американского гнильца",
-"лечение европейского гнильца","лечение вощинной моли","вентиляция улья","контроль температуры","контроль влажности","уход за дымарем",
-"чистка медогонки","обслуживание экстрактора","уход за костюмом","чистка перчаток","чистка маски","проверка здоровья пчёл",
-"профилактика заболеваний","анализ пыльцы","анализ мёда","сбор маточного молочка","сбор пчелиного яда","экстракция пчелиного яда",
-"размножение","отбор маток","поймать рой","переселение роя","усиление семьи","идентификация пчёл","карта пасеки",
-"нумерация ульев","маркировка ульев","график инспекции","график кормления","зимнее кормление","летнее кормление",
-"осеннее кормление","весеннее кормление","мониторинг нектара","мониторинг пыльцы","записи пчеловодства","производительность семьи",
-"производство мёда","производство воска","производство прополиса","хранение перги","хранение мёда","хранение воска",
-"гигиена улья","гигиена пасеки","размещение ульев","планировка пасеки","поведение роя","поведение пчёл",
-"поведение при сборе нектара","развитие семьи","развитие расплода","развитие матки","развитие трутней","обслуживание улья",
-"ремонт рамки","ремонт вощины","сбор мёда","переработка воска","оборудование пасеки","безопасность пасеки",
-# ===== ENGLISH =====
-"bee","bees","honey","beekeeping","beekeeper","bee colony","queen bee","worker bee","drone bee","hive","beehive","nucleus hive",
-"langstroth hive","frames","honeycomb","wax foundation","queen excluder","beekeeper suit","veil","gloves","smoker",
-"honey extractor","propolis","royal jelly","bee bread","pollen","wax","feeding","sugar","syrup","candy","spring feeding",
-"autumn feeding","candy feeding","drone bee","queen rearing","artificial insemination","colony splitting","winter prep",
-"spring prep","nectar collection","pollen collection","swarm prevention","swarm capture","swarm relocation","colony boosting",
-"bee identification","apiary mapping","hive numbering","hive labelling","inspection schedule","feed schedule","winter feeding",
-"summer feeding","autumn feeding","spring feeding","nectar monitoring","pollen monitoring","beekeeping records","colony performance",
-"honey production","wax production","propolis production","perga storage","honey storage","wax storage","hive hygiene","apiary hygiene",
-"hive spacing","apiary layout","swarm behavior","bee behavior","foraging behavior","colony development","brood development",
-"queen development","drone development","hive maintenance","frame repair","foundation repair","honey extraction","wax rendering",
-"beekeeping equipment","apiary security","varroa treatment","nosema treatment","american foulbrood treatment","european foulbrood treatment",
-"wax moth treatment","hive ventilation","temperature control","humidity control","smoker maintenance","medogonka cleaning",
-"extractor maintenance","bee suit maintenance","gloves cleaning","veil cleaning","bee health check","disease prevention",
-"pollen analysis","honey analysis","royal jelly harvesting","bee venom collection","bee venom extraction","propagation",
-"queen selection","colony inspection","honey frame","brood frame","wax frame","foundation sheet","cappings","supers","brood box",
-"honey super","queen marking","bee brush","bee feeder","swarm trap","swarm box","nectar trap","pollination"
+    # ---------- ASOSIY ----------
+"ari","arilar","asal","asalarichilik","asalarichi",
+"ари","арилар","асал","асаларичилик","асаларичи",
+"bee","bees","honey","beekeeping","beekeeper",
+"пчела","пчёлы","мёд","пчеловодство","пчеловод",
+
+# ---------- ARI TURLARI ----------
+"qirolicha","ona ari","ishchi ari","erkak ari","ari oilasi",
+"қиролича","она ари","ишчи ари","эркак ари","ари оиласи",
+"queen bee","worker bee","drone bee","bee colony",
+"матка","рабочая пчела","трутень","пчелиная семья",
+
+# ---------- UYALAR ----------
+"ari uyasi","ari uyalari","katta uya","kichik uya","ko‘p qavatli uya",
+"dadan","langstroth","rut","nukleus","bo‘linma uya",
+"ари уяси","катта уя","кичик уя","кўп қаватли уя",
+"улей","многокорпусный улей","лежак","дадан",
+"hive","beehive","langstroth hive","dadant hive","nucleus hive",
+
+# ---------- UYA QISMLARI ----------
+"ramka","ramkalar","katak","sota","panjara",
+"asos","mumli asos","asali panjara",
+"рамка","рамки","соты","вощина","разделительная решётка",
+"frame","frames","honeycomb","wax foundation","queen excluder",
+
+# ---------- JIHOZLAR ----------
+"asalarichi kiyimi","niqob","qo‘lqop","tutatuvchi",
+"asal ajratgich","asal ekstraktori","asal pichog‘i",
+"асаларичи кийими","ниқоб","қўлқоп","тутатувчи",
+"дымарь","медогонка","нож для распечатки",
+"beekeeper suit","veil","gloves","smoker","honey extractor",
+
+# ---------- MAHSULOTLAR ----------
+"asal","mum","propolis","perga","gulchang","qirollik suti","ari zahri",
+"асал","мум","прополис","перга","гулчанг","маточное молочко",
+"honey","wax","propolis","bee bread","pollen","royal jelly",
+
+# ---------- KASALLIKLAR ----------
+"varroa","nosema","akarapidoz","amerikan chirishi","yevropa chirishi",
+"virus","zamburug‘","ari kasalligi",
+"варроа","нозема","акарапидоз","гнилец","вирус","грибок",
+"varroa mite","nosema disease","american foulbrood","viral disease",
+
+# ---------- DAVOLASH ----------
+"davolash","profilaktika","dori","kimyoviy davolash","organik davolash",
+"oksalat kislota","formik kislota","timol",
+"даволаш","профилактика","дори","щавелевая кислота","тимол",
+"treatment","prevention","medicine","oxalic acid","formic acid",
+
+# ---------- OZIQALANTIRISH ----------
+"oziqlantirish","shakar","sirop","kandi","bahorgi oziqlantirish",
+"озиқлантириш","шакар","сироп","канди",
+"feeding","sugar","syrup","candy",
+
+# ---------- PARVARISH ----------
+"qishlatish","yozlatish","parvarish","ventilyatsiya","izolyatsiya",
+"қишлатиш","парвариш","вентиляция",
+"wintering","care","ventilation",
+
+# ---------- ISHLAB CHIQARISH ----------
+"asal yig‘ish","asal olish","asal ajratish","asal sifati","filtrlash",
+"асал йиғиш","асал олиш","асал сифати",
+"honey harvesting","honey extraction","honey quality",
+
+# Oziqlantirish va tayyorlash
+    "oziqlantirish", "shakar", "kandi", "sirop", "siroplar", "bal siropi", "bal shakar", "shakarli yem",
+    "ari oziqlantirish", "ari ovqat", "bal bilan oziqlantirish", "ozuqa", "kand tayyorlash", "asalar ovqati",
 ]
 
 def is_asalari(text):
     return any(w in text.lower() for w in ASALARI_WORDS)
 
-# ================== FILES ==================
+# ================== FILE READ ==================
 def read_file(path):
     if path.endswith(".docx"):
         return "\n".join(p.text for p in Document(path).paragraphs)
@@ -160,6 +185,7 @@ def chunk_text(text):
 
 # ================== INDEX ==================
 def build_index():
+    print("♻️ Indeks qurilmoqda...")
     docs = []
     for f in os.listdir(DATA_DIR):
         if f.endswith((".pdf", ".docx", ".txt")):
@@ -168,158 +194,131 @@ def build_index():
                 if len(c.strip()) > 50 and is_asalari(c):
                     docs.append(c.strip())
     if not docs:
+        print("❌ Data papkada asalarichilik hujjatlari topilmadi!")
         return
+
     vectors = []
     for i in range(0, len(docs), BATCH_SIZE):
-        r = client.embeddings.create(model="text-embedding-3-small", input=docs[i:i+BATCH_SIZE])
+        r = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=docs[i:i+BATCH_SIZE]
+        )
         vectors.extend([d.embedding for d in r.data])
+
     index = faiss.IndexFlatL2(len(vectors[0]))
     index.add(np.array(vectors).astype("float32"))
+
     faiss.write_index(index, INDEX_FILE)
     pickle.dump(docs, open(META_FILE, "wb"))
+    print("✅ Indeks tayyor")
 
 def search_docs(q):
     if not os.path.exists(INDEX_FILE):
         return []
     index = faiss.read_index(INDEX_FILE)
     texts = pickle.load(open(META_FILE, "rb"))
-    emb = client.embeddings.create(model="text-embedding-3-small", input=[q]).data[0].embedding
-    _, I = index.search(np.array([emb]).astype("float32"), TOP_K)
+
+    emb = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=[q]
+    ).data[0].embedding
+
+    D, I = index.search(np.array([emb]).astype("float32"), TOP_K)
     return [texts[i] for i in I[0]]
 
 # ================== AI ANSWER ==================
-def ai_answer(uid, q, lang="uz"):
-    # Basic greeting
-    basic = basic_chat(q, lang)
+def ai_answer(uid, q):
+    lang = detect_lang(q)
+    basic = basic_chat(q)
     if basic:
-        return basic
+        return basic[lang]
 
-    if uid not in user_memory:
-        user_memory[uid] = []
-
-    # Asalarichilik mavzusiga tegishli yoki kontekst mavjud bo‘lsa javob
-    if not is_asalari(q) and not user_memory[uid]:
-        no_info = {
-            "uz": "🐝 Bu bot faqat asalarichilik uchun.",
-            "ru": "🐝 Бот только для пчеловодства.",
+    if not is_asalari(q):
+        return {
+            "uz": "🐝 Bu bot faqat asalarichilik uchun mo‘ljallangan.",
+            "ru": "🐝 Этот бот предназначен для пчеловодства.",
             "en": "🐝 This bot is for beekeeping only."
-        }
-        return no_info.get(lang, no_info["uz"])
+        }[lang]
 
-    # Kontekstni saqlash – maksimal MAX_MEMORY savol
-    user_memory[uid].append(q)
-    if len(user_memory[uid]) > MAX_MEMORY:
-        user_memory[uid] = user_memory[uid][-MAX_MEMORY:]
-
-    # Oldingi savollarni birlashtirish
-    context_text = "\n".join(user_memory[uid]) + "\n" + "\n".join(search_docs(q))
-
-    if not context_text.strip():
-        not_found = {
-            "uz": "❌ Ma’lumot topilmadi.",
-            "ru": "❌ Информация не найдена.",
-            "en": "❌ No information found."
-        }
-        return not_found.get(lang, not_found["uz"])
+    ctx = "\n".join(search_docs(q))
+    if not ctx:
+        return {
+            "uz": "❌ Bu savol bo‘yicha data papkada ma’lumot topilmadi.",
+            "ru": "❌ По этому вопросу информация в папке data не найдена.",
+            "en": "❌ No information found in data folder for this question."
+        }[lang]
 
     r = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
             {"role": "system", "content": "You are an expert beekeeper."},
-            {"role": "user", "content": f"{context_text}\n\nSavol: {q}"}
+            {"role": "user", "content": f"{ctx}\n\nSavol: {q}"}
         ],
         temperature=0.3
     )
     return r.choices[0].message.content.strip()
 
-# ================== BUTTONS ==================
-def reset_button():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Yangi savol", callback_data="reset")]])
-
-def lang_buttons():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🇺🇿 Uzbek", callback_data="lang_uz")],
-        [InlineKeyboardButton("🇷🇺 Russian", callback_data="lang_ru")],
-        [InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")]
-    ])
-
-# ================== LOG CHAT ==================
-async def log_chat(update: Update):
-    chat = update.effective_chat
-    user_stats.add(update.effective_user.id)
-    if chat.id not in chat_log:
-        chat_log[chat.id] = {
-            "title": chat.title or f"{update.effective_user.first_name}",
-            "type": chat.type
-        }
-
-# ================== HANDLERS ==================
+# ================== TELEGRAM HANDLERS ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await log_chat(update)
+    user_stats.add(update.effective_user.id)
     await update.message.reply_text(
-        "Salom! Iltimos, tilni tanlang / Please choose a language / Пожалуйста, выберите язык:",
-        reply_markup=lang_buttons()
+        "🐝 Asalarichilik AI botga xush kelibsiz!\nSavol berishingiz mumkin."
     )
-
-async def lang_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    uid = query.from_user.id
-    lang = query.data.split("_")[1]  # uz/ru/en
-    user_language[uid] = lang
-    await query.answer()
-    greetings = {
-        "uz": "Assalomu alaykum! Savolingizni yozing 😊",
-        "ru": "Здравствуйте! Задайте свой вопрос 😊",
-        "en": "Hello! Ask your question 😊"
-    }
-    await query.message.reply_text(greetings.get(lang, greetings["uz"]), reply_markup=reset_button())
-
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await log_chat(update)
-    uid = update.effective_user.id
-    lang = user_language.get(uid, "uz")  # default uz
-    q = update.message.text.strip()
-    questions_log.append(q)
-    ans = ai_answer(uid, q, lang)
-
-    await update.message.reply_text(ans, reply_markup=reset_button())
-
-    if ADMIN_ID:
-        await context.bot.send_message(
-            ADMIN_ID,
-            f"👤 USER ID: {uid}\n🕒 {datetime.now()}\n❓ Savol: {q}\n✅ Javob: {ans}\n"
-            f"💬 Chat: {chat_log[update.effective_chat.id]['title']} ({chat_log[update.effective_chat.id]['type']})"
-        )
-
-async def reset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    uid = query.from_user.id
-    user_memory.pop(uid, None)
-    await query.answer()
-    await query.message.reply_text(
-        "✅ Context tozalandi. Yangi savol berishingiz mumkin.",
-        reply_markup=reset_button()
-    )
-
-# ================== ADMIN ==================
-async def reindex(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Sizda bu komandani ishlatish huquqi yo‘q.")
-        return
-    await update.message.reply_text("♻️ Indeks yangilanmoqda...")
-    build_index()
-    await update.message.reply_text("✅ Indeks tayyor")
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Sizda bu komandani ishlatish huquqi yo‘q.")
         return
-    chats = "\n".join([f"{v['title']} ({v['type']})" for v in chat_log.values()])
     await update.message.reply_text(
         f"📊 Foydalanuvchilar: {len(user_stats)}\n"
-        f"📩 Savollar: {len(questions_log)}\n"
-        f"💬 Guruhlar/kanallar:\n{chats}"
+        f"📩 Savollar: {len(questions_log)}"
     )
+
+async def reindex(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    await update.message.reply_text("♻️ Index yangilanmoqda...")
+    build_index()
+    await update.message.reply_text("✅ Index tayyor")
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    q = update.message.text.strip()
+    user_stats.add(uid)
+    questions_log.append(q)
+
+    ans = ai_answer(uid, q)
+
+    # ADMIN LOG
+    await context.bot.send_message(
+        ADMIN_ID,
+        f"👤 USER: {uid}\n🕒 {datetime.now()}\n❓ {q}\n✅ {ans}"
+    )
+    await update.message.reply_text(ans)
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    user_stats.add(uid)
+    photo = update.message.photo[-1]
+    file: File = await photo.get_file()
+    path = os.path.join("tmp", f"{photo.file_id}.jpg")
+    os.makedirs("tmp", exist_ok=True)
+    await file.download_to_drive(path)
+    await update.message.reply_text("📷 Rasm qabul qilindi, tahlil qilinmoqda...")
+
+    # AI javob (misol uchun rasmni tavsiflash)
+    r = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": "You are an expert beekeeper."},
+            {"role": "user", "content": f"Bu rasmni tavsifla va agar kasallik bo'lsa qanday davo qilishni ayt:\n{path}"}
+        ],
+        temperature=0.3
+    )
+    ans = r.choices[0].message.content.strip()
+    await context.bot.send_message(ADMIN_ID,
+        f"👤 USER: {uid} (rasm)\n🕒 {datetime.now()}\n✅ {ans}"
+    )
+    await update.message.reply_text(ans)
 
 # ================== MAIN ==================
 if __name__ == "__main__":
@@ -328,11 +327,10 @@ if __name__ == "__main__":
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("reindex", reindex))
     app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("reindex", reindex))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    app.add_handler(CallbackQueryHandler(reset_callback, pattern="^reset$"))
-    app.add_handler(CallbackQueryHandler(lang_callback, pattern="^lang_"))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
     print("🐝 BOT ISHGA TUSHDI")
     app.run_polling()
