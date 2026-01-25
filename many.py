@@ -137,7 +137,7 @@ ASALARI_WORDS = [
 "extractor maintenance","bee suit maintenance","gloves cleaning","veil cleaning","bee health check","disease prevention",
 "pollen analysis","honey analysis","royal jelly harvesting","bee venom collection","bee venom extraction","propagation",
 "queen selection","colony inspection","honey frame","brood frame","wax frame","foundation sheet","cappings","supers","brood box",
-"honey super","queen marking","bee brush","bee feeder","swarm trap","swarm box","nectar trap","pollination".
+"honey super","queen marking","bee brush","bee feeder","swarm trap","swarm box","nectar trap","pollination"
 ]
 
 def is_asalari(text):
