@@ -157,31 +157,60 @@ def chunk_text(text):
     return [text[i:i+CHUNK_SIZE] for i in range(0, len(text), CHUNK_SIZE)]
 
 # ================== INDEX ==================
+# ================== INDEX ==================
 def build_index():
+    print("♻️ INDEX YARATILYAPTI...")
     docs = []
+
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+
     for f in os.listdir(DATA_DIR):
         if f.endswith((".pdf", ".docx", ".txt")):
             text = read_file(os.path.join(DATA_DIR, f))
             for c in chunk_text(text):
                 if len(c.strip()) > 50 and is_asalari(c):
                     docs.append(c.strip())
+
     if not docs:
+        print("❌ DATA papkada mos hujjat yo‘q")
         return
+
     vectors = []
     for i in range(0, len(docs), BATCH_SIZE):
-        r = client.embeddings.create(model="text-embedding-3-small", input=docs[i:i+BATCH_SIZE])
+        r = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=docs[i:i+BATCH_SIZE]
+        )
         vectors.extend([d.embedding for d in r.data])
+
     index = faiss.IndexFlatL2(len(vectors[0]))
     index.add(np.array(vectors).astype("float32"))
+
     faiss.write_index(index, INDEX_FILE)
     pickle.dump(docs, open(META_FILE, "wb"))
 
-def search_docs(q):
+    print("✅ INDEX TAYYOR")
+
+def index_invalid():
     if not os.path.exists(INDEX_FILE):
-        return []
+        return True
+    if not os.path.exists(META_FILE):
+        return True
+    if os.path.getsize(INDEX_FILE) < 1000:
+        return True
+    if os.path.getsize(META_FILE) < 50:
+        return True
+    return False
+
+def search_docs(q):
     index = faiss.read_index(INDEX_FILE)
     texts = pickle.load(open(META_FILE, "rb"))
-    emb = client.embeddings.create(model="text-embedding-3-small", input=[q]).data[0].embedding
+    emb = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=[q]
+    ).data[0].embedding
+
     _, I = index.search(np.array([emb]).astype("float32"), TOP_K)
     return [texts[i] for i in I[0]]
 
