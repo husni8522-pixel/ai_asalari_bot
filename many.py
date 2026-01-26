@@ -102,7 +102,7 @@ ASALARI_WORDS = [
    "ari","asalari ich ketishi","asalarim","qishki ozuqa","arilar","asal","asalarichilik","asalarichi","ari oilasi","qirolicha",
 "ona ari","ishchi ari","erkak ari","qandi","kandi","nuklius","asalarilarim",
 "ari","асалари","bee","пчела","qishki oziqa","oziqa","asalari ozuqasi kamayib qolibdi qishda nima qilishim kerak",
-"asalari","асалари","honeybee","медоносная пчела",
+"asalari","асалари","honeybee","медоносная пчела","Asalarilarning kuchi kam nima qilish kerak",
 "asalarichilik","асаларичилик","beekeeping","пчеловодство",
 "asalarichi","асаларичи","beekeeper","пчеловод",
 "ari oilasi","ари оиласи","bee colony","пчелиная семья",
