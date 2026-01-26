@@ -693,7 +693,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await log_chat(update)
     await update.message.reply_text(
         "🐝 Asalarichilik AI botga xush kelibsiz! Marhamat savol bering",
-        "🐝 Добро пожаловать в AI-бот по пчеловодству! Пожалуйста, задавайте вопросы",
+        "🐝 Добро пожаловать в AI-бот по пчеловодству! Пожалуйста задавайте вопросы",
         "🐝 Welcome to the Beekeeping AI Bot! Please, ask your questions"
         reply_markup=reset_button()
     )
