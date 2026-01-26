@@ -676,7 +676,7 @@ def ai_answer(uid, q):
 
 # ================== BUTTON ==================
 def reset_button():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Yangi savol", callback_data="reset")]])
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Yangi | Новый | New", callback_data="reset")]])
 
 # ================== LOG CHAT ==================
 async def log_chat(update: Update):
@@ -692,10 +692,12 @@ async def log_chat(update: Update):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await log_chat(update)
     await update.message.reply_text(
-        "🐝 Asalarichilik AI botga xush kelibsiz!",
+        "🐝 Asalarichilik AI botga xush kelibsiz! Marhamat savol bering",
+        "🐝 Добро пожаловать в AI-бот по пчеловодству! Пожалуйста, задавайте вопросы",
+        "🐝 Welcome to the Beekeeping AI Bot! Please, ask your questions"
         reply_markup=reset_button()
     )
-
+ 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await log_chat(update)
     uid = update.effective_user.id
