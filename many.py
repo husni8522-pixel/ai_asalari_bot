@@ -57,12 +57,44 @@ def detect_lang(text):
 # ================== BASIC CHAT ==================
 def basic_chat(text):
     t = text.lower()
+    
+    # --- SALOM / HAYRLASHUV ---
     if any(w in t for w in ["salom", "assalomu", "hello", "hi", "привет"]):
         return {
-            "uz": "Assalomu alaykum 😊 Savolingizni yozing.",
+            "uz": "Assalomu alaykum 😊 nima xizmat. savol bormi?",
             "ru": "Здравствуйте 😊 Задайте вопрос.",
             "en": "Hello 😊 Ask your question."
         }
+    if any(w in t for w in ["xayr", "hayr", "goodbye", "bye", "пока", "до свидания"]):
+        return {
+            "uz": "Xayr! Sizni kutib qolamiz 😊",
+            "ru": "До свидания! Будем рады вас видеть снова 😊",
+            "en": "Goodbye! We hope to see you again 😊"
+        }
+    
+    # --- RAHMAT / MINNATDORLIK ---
+    if any(w in t for w in ["rahmat", "raxmat", "рахмат", "спасибо", "thank you"]):
+        return {
+            "uz": "Siz uchun hursandman. Arzimaydi 😊",
+            "ru": "Рад помочь! Не за что 😊",
+            "en": "I’m happy to help. You’re welcome 😊"
+        }
+    
+    # --- BOTNING YARATUVCHISI / ALOQA ---
+    if any(w in t for w in ["sani kim yaratgan", "seni kim yaratgan", "sani kim tuzgan", "seni kim tuzgan", "sani hujayining kim", 
+    "seni hujayining kim", "sen kim", "sani kim", "kim san", "kim sen", "kim tuzgan"]):
+        return {
+            "uz": "Men akajonim Husniddin Zaripov tomonidan yaratilgan botman. Akamni duolarizda eslab qo‘ying @zhn8522😊",
+            "ru": "Мен создан ботом Хусниддин Зарипов. Помните моего брата в ваших молитвах @zhn8522 😊",
+            "en": "I am a bot created by Husniddin Zaripov. Keep my brother in your prayers @zhn8522 😊"
+        }
+    if any(w in t for w in ["qanday aloqaga chiqamiz", "aloqa", "contact", "how to contact"]):
+        return {
+            "uz": "Aloqa uchun: +998973850026 📞",
+            "ru": "Связь: +998973850026 📞",
+            "en": "Contact: +998973850026 📞"
+        }
+    
     return None
 
 # ================== ASALARI ==================
