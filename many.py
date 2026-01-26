@@ -68,7 +68,7 @@ def basic_chat(text):
 # ================== ASALARI ==================
 ASALARI_WORDS = [
     # ===== UZBEKCHA =====
-"ari","arilar","asal","asalarichilik","asalarichi","ari oilasi","qirolicha","ona ari","ishchi ari","erkak ari","qandi","kandi","nuklius","asalarilarim",
+"ari","asalari ich ketishi","asalarim","qishki ozuqa","arilar","asal","asalarichilik","asalarichi","ari oilasi","qirolicha","ona ari","ishchi ari","erkak ari","qandi","kandi","nuklius","asalarilarim",
 "matka","truten","ari uyasi","katta uya","kichik uya","ko‘p qavatli uya","bo‘linma uya","ramka","katak","sota","panjara",
 "mumli asos","asali panjara","asal ajratgich","asal ekstraktori","asal pichog‘i","asalarichi kiyimi","niqob","qo‘lqop",
 "tutatuvchi","dimar","medogonka","ari zahri","qirollik suti","perga","gulchang","propolis","mum","honeycomb",
