@@ -772,6 +772,33 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳ Index yangilanmoqda...")
     build_index()
     await update.message.reply_text("✅ Fayl qo‘shildi va index yangilandi")
+
+# ================== USER MESSAGE ==================
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    lang = detect_lang(text)
+
+    index = faiss.read_index(INDEX_FILE)
+    metas = pickle.load(open(META_FILE, "rb"))
+
+    emb = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=[text]
+    )
+    q = np.array(emb.data[0].embedding).astype("float32").reshape(1, -1)
+
+    D, I = index.search(q, TOP_K)
+    context_text = "\n".join(metas[i]["file"] for i in I[0])
+
+    prompt = f"Savol: {text}\nMa'lumot: {context_text}"
+
+    res = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    await update.message.reply_text(res.choices[0].message.content)
+    
 # ================== MAIN ==================
 if __name__ == "__main__":
     if not os.path.exists(INDEX_FILE):
