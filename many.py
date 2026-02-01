@@ -737,7 +737,7 @@ async def admin_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ADMIN_UPLOAD
     path = os.path.join(DATA_DIR, filename)
     file_obj = await doc.get_file()
-    await file_obj.download_to_path(path)
+    await file_obj.download(custom_path=path)  # <-- bu to‘g‘ri
     await update.message.reply_text(f"✅ {filename} yuklandi. Indeks yangilanmoqda...")
     build_index()
     await update.message.reply_text("✅ Indeks yangilandi")
