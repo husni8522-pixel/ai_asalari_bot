@@ -743,7 +743,35 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📩 Savollar: {len(questions_log)}\n"
         f"💬 Guruhlar/kanallar:\n{chats}"
     )
+# ================== ADMIN FILE UPLOAD ==================
+async def upload_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ Siz admin emassiz.")
+        return
+    await update.message.reply_text("📎 Fayl yuboring (.pdf, .docx, .txt)")
 
+async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    doc = update.message.document
+    if not doc:
+        return
+
+    if not doc.file_name.endswith((".pdf", ".docx", ".txt")):
+        await update.message.reply_text("❌ Faqat PDF, DOCX yoki TXT")
+        return
+
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+
+    file = await context.bot.get_file(doc.file_id)
+    path = os.path.join(DATA_DIR, doc.file_name)
+    await file.download_to_drive(path)
+
+    await update.message.reply_text("⏳ Index yangilanmoqda...")
+    build_index()
+    await update.message.reply_text("✅ Fayl qo‘shildi va index yangilandi")
 # ================== MAIN ==================
 if __name__ == "__main__":
     if not os.path.exists(INDEX_FILE):
