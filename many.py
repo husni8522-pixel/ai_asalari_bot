@@ -724,72 +724,37 @@ async def reset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reset_button()
     )
 
-# ================== ADMIN FILE UPLOAD ==================
-async def upload_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ================== ADMIN ==================
+async def reindex(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Siz admin emassiz.")
+        await update.message.reply_text("❌ Sizda bu komandani ishlatish huquqi yo‘q.")
         return
-    await update.message.reply_text("📎 Fayl yuboring (.pdf, .docx, .txt)")
-
-async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    doc = update.message.document
-    if not doc:
-        return
-
-    if not doc.file_name.endswith((".pdf", ".docx", ".txt")):
-        await update.message.reply_text("❌ Faqat PDF, DOCX yoki TXT")
-        return
-
-    if not os.path.exists(DATA_DIR):
-        os.makedirs(DATA_DIR)
-
-    file = await context.bot.get_file(doc.file_id)
-    path = os.path.join(DATA_DIR, doc.file_name)
-    await file.download_to_drive(path)
-
-    await update.message.reply_text("⏳ Index yangilanmoqda...")
+    await update.message.reply_text("♻️ Indeks yangilanmoqda...")
     build_index()
-    await update.message.reply_text("✅ Fayl qo‘shildi va index yangilandi")
+    await update.message.reply_text("✅ Indeks tayyor")
 
-# ================== USER MESSAGE ==================
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    lang = detect_lang(text)
-
-    index = faiss.read_index(INDEX_FILE)
-    metas = pickle.load(open(META_FILE, "rb"))
-
-    emb = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=[text]
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ Sizda bu komandani ishlatish huquqi yo‘q.")
+        return
+    chats = "\n".join([f"{v['title']} ({v['type']})" for v in chat_log.values()])
+    await update.message.reply_text(
+        f"📊 Foydalanuvchilar: {len(user_stats)}\n"
+        f"📩 Savollar: {len(questions_log)}\n"
+        f"💬 Guruhlar/kanallar:\n{chats}"
     )
-    q = np.array(emb.data[0].embedding).astype("float32").reshape(1, -1)
-
-    D, I = index.search(q, TOP_K)
-    context_text = "\n".join(metas[i]["file"] for i in I[0])
-
-    prompt = f"Savol: {text}\nMa'lumot: {context_text}"
-
-    res = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    await update.message.reply_text(res.choices[0].message.content)
 
 # ================== MAIN ==================
-def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("upload", upload_start))
-    app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-
-    print("🤖 Bot ishga tushdi")
-    app.run_polling()
-
 if __name__ == "__main__":
-    main()
+    if not os.path.exists(INDEX_FILE):
+        build_index()
+
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("reindex", reindex))
+    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app.add_handler(CallbackQueryHandler(reset_callback, pattern="^reset$"))
+
+    print("🐝 BOT ISHGA TUSHDI")
+    app.run_polling()
