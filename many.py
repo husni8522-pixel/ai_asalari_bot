@@ -84,7 +84,7 @@ def basic_chat(text):
 # ================== ASALARI ==================
 ASALARI_WORDS = [
    "ari","asalari ich ketishi","asalarim","qishki ozuqa","arilar","asal","asalarichilik","asalarichi","ari oilasi","qirolicha",
-"ona ari","ishchi ari","erkak ari","qandi","kandi","nuklius","asalarilarim",
+"ona ari","ishchi ari","erkak ari","qandi","kandi","nuklius","asalarilarim","asalarilar rivojlanishi uchun","asalari rivojlanishi uchun",
 "ari","асалари","bee","пчела","qishki oziqa","oziqa","asalari ozuqasi kamayib qolibdi qishda nima qilishim kerak",
 "asalari","асалари","honeybee","медоносная пчела","Asalarilarning kuchi kam nima qilish kerak",
 "asalarichilik","асаларичилик","beekeeping","пчеловодство",
