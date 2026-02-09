@@ -97,7 +97,7 @@ ASALARI_WORDS = [
 "erkak ari","эркак ари","drone bee","трутень","Ona arini qaerdan sotib olsam buladi","Asalarichilik jixozlarini qayerdan sotib olsam bo’ladi",
 "truten","трутен","drone","трутень","Asalari oilasini kreditga qayerdan olsam buladi",
 "matka","матка","queen","матка","Ona asalari sotib olish","Asalarilar sotib olish","Asalari oilasini sotib olish","Asalari zotlarini sotib olish",
-"ari uyasi","ари уяси","hive","улей",
+"ari uyasi","ари уяси","hive","улей","пчелиную"
 "katta uya","катта уя","large hive","большой улей",
 "kichik uya","кичик уя","small hive","малый улей",
 "kop qavatli uya","кўп қаватли уя","multi hive","многоярусный улей",
