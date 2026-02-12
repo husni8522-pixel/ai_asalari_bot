@@ -47,7 +47,6 @@ def detect_lang(t):
     except:
         return "uz"
         
-
 # ================== MEMORY & LOG ==================
 user_memory = {}      # user_id -> savollar
 questions_log = []    # savollar logi
@@ -544,7 +543,6 @@ ASALARI = ["ari","asalari ich ketishi","asalarim","qishki ozuqa","arilar","asal"
 "queen introduction tool","она ари қўйиш ускуналари","queen introduction tool","инструмент для подсадки матки",
 "hive ventilator","уя вентилятори","hive ventilator","вентилятор улья",
 "apiary layout tools","апиари жойлашув ускуналари","apiary layout tools","инструменты для планировки пасеки"
-
 ]
 def is_asalari(t): return any(w in t.lower() for w in ASALARI)
 
@@ -558,14 +556,12 @@ def read_file(p):
         return open(p, encoding="utf-8", errors="ignore").read()
     return ""
 
-def chunk(t): return [t[i:i+CHUNK_SIZE] for i in range(0,len(t),CHUNK_SIZE)]
-
-# ================== INDEX ==================
-def chunk_text(text, size=1000):
+def chunk_text(text, size=CHUNK_SIZE):
     if not text:
         return []
     return [text[i:i+size] for i in range(0, len(text), size)]
 
+# ================== INDEX ==================
 def build_index():
     print("♻️ INDEX YARATILYAPTI...")
     docs = []
@@ -601,15 +597,10 @@ def build_index():
     print("✅ INDEX TAYYOR")
 
 def index_invalid():
-    if not os.path.exists(INDEX_FILE):
-        return True
-    if not os.path.exists(META_FILE):
-        return True
-    if os.path.getsize(INDEX_FILE) < 1000:
-        return True
-    if os.path.getsize(META_FILE) < 50:
-        return True
-    return False
+    return (not os.path.exists(INDEX_FILE) or
+            not os.path.exists(META_FILE) or
+            os.path.getsize(INDEX_FILE)<1000 or
+            os.path.getsize(META_FILE)<50)
 
 def search_docs(q):
     if index_invalid():
@@ -678,13 +669,24 @@ async def text(u:Update,c):
         await u.message.reply_text("✅ Reklama saqlandi")
         return
 
+    # 🐝 AI javob
     ans=ai_answer(uid,txt)
-    if ads: ans+="\n\n📣Tavsiya qilamiz! "+ads[-1]
+    if ads: ans+="\n\n📣 Tavsiya qilamiz! "+ads[-1]
+
+    # foydalanuvchiga javob
     await u.message.reply_text(ans,reply_markup=reset_btn())
+
+    # 🔔 Savol va javobni adminga yuborish
+    if ADMIN_ID:
+        chat_title = chat_log.get(u.effective_chat.id, {}).get("title", "Private chat")
+        chat_type = chat_log.get(u.effective_chat.id, {}).get("type", u.effective_chat.type)
+        msg = (f"👤 USER ID: {uid}\n🕒 {datetime.now()}\n❓ Savol: {txt}\n✅ Javob: {ans}\n"
+               f"💬 Chat: {chat_title} ({chat_type})")
+        await c.bot.send_message(chat_id=ADMIN_ID, text=msg)
 
 async def reset_cb(u:Update,c):
     await u.callback_query.answer()
-    await u.callback_query.message.reply_text("✅ Yangi savol bering")
+    await u.callback_query.message.reply_text("✅ Yangi savol bering", reply_markup=reset_btn())
 
 # ================== ADMIN ==================
 ADMIN_CHOOSE,UPLOAD,DELETE=range(3)
