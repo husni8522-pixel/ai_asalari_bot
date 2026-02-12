@@ -1,18 +1,11 @@
-import os
-import pickle
-import faiss
-import numpy as np
+# ================== IMPORTS ==================
+import os, pickle, faiss, numpy as np
 from dotenv import load_dotenv
 from langdetect import detect
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder,
-    MessageHandler,
-    CommandHandler,
-    ContextTypes,
-    CallbackQueryHandler,
-    ConversationHandler,
-    filters
+    ApplicationBuilder, MessageHandler, CommandHandler,
+    ContextTypes, CallbackQueryHandler, ConversationHandler, filters
 )
 from openai import OpenAI
 from docx import Document
@@ -23,13 +16,13 @@ from datetime import datetime
 DATA_DIR = "data"
 INDEX_FILE = "index.faiss"
 META_FILE = "meta.pkl"
+ADS_FILE = "ads.pkl"
 
 CHUNK_SIZE = 1000
 BATCH_SIZE = 32
 TOP_K = 8
-MAX_MEMORY = 5
 
-# ================== LOAD ENV ==================
+# ================== ENV ==================
 load_dotenv()
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
@@ -37,24 +30,29 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 
 client = OpenAI(api_key=OPENAI_KEY)
 
+# ================== GLOBAL ==================
+user_memory = {}
+questions_log = []
+user_stats = set()
+chat_log = {}
+
+ads = pickle.load(open(ADS_FILE, "rb")) if os.path.exists(ADS_FILE) else []
+admin_mode = {}
+
+# ================== LANGUAGE ==================
+def detect_lang(t):
+    try:
+        l = detect(t)
+        return "ru" if l.startswith("ru") else "en" if l.startswith("en") else "uz"
+    except:
+        return "uz"
+        
+
 # ================== MEMORY & LOG ==================
 user_memory = {}      # user_id -> savollar
 questions_log = []    # savollar logi
 user_stats = set()    # user_id lar
 chat_log = {}         # chat_id -> {"title": str, "type": str}
-
-# ================== LANGUAGE ==================
-def detect_lang(text):
-    try:
-        l = detect(text)
-        if l.startswith("ru"):
-            return "ru"
-        if l.startswith("en"):
-            return "en"
-        return "uz"
-    except:
-        return "uz"
-
 # ================== BASIC CHAT ==================
 def basic_chat(text):
     t = text.lower()
@@ -82,8 +80,7 @@ def basic_chat(text):
     return None
 
 # ================== ASALARI ==================
-ASALARI_WORDS = [
-   "ari","asalari ich ketishi","asalarim","qishki ozuqa","arilar","asal","asalarichilik","asalarichi","ari oilasi","qirolicha",
+ASALARI = ["ari","asalari ich ketishi","asalarim","qishki ozuqa","arilar","asal","asalarichilik","asalarichi","ari oilasi","qirolicha",
 "ona ari","ishchi ari","erkak ari","qandi","kandi","nuklius","asalarilarim","asalarilar rivojlanishi uchun","asalari rivojlanishi uchun",
 "ari","асалари","bee","пчела","qishki oziqa","oziqa","asalari ozuqasi kamayib qolibdi qishda nima qilishim kerak",
 "asalari","асалари","honeybee","медоносная пчела","Asalarilarning kuchi kam nima qilish kerak","asalarichilikni","asalarichilikni nimadan boshlash",
@@ -97,7 +94,7 @@ ASALARI_WORDS = [
 "erkak ari","эркак ари","drone bee","трутень","Ona arini qaerdan sotib olsam buladi","Asalarichilik jixozlarini qayerdan sotib olsam bo’ladi",
 "truten","трутен","drone","трутень","Asalari oilasini kreditga qayerdan olsam buladi",
 "matka","матка","queen","матка","Ona asalari sotib olish","Asalarilar sotib olish","Asalari oilasini sotib olish","Asalari zotlarini sotib olish",
-"ari uyasi","ари уяси","hive","улей","пчелиную"
+"ari uyasi","ари уяси","hive","улей",
 "katta uya","катта уя","large hive","большой улей",
 "kichik uya","кичик уя","small hive","малый улей",
 "kop qavatli uya","кўп қаватли уя","multi hive","многоярусный улей",
@@ -546,24 +543,21 @@ ASALARI_WORDS = [
 "queen introduction tool","она ари қўйиш ускуналари","queen introduction tool","инструмент для подсадки матки",
 "hive ventilator","уя вентилятори","hive ventilator","вентилятор улья",
 "apiary layout tools","апиари жойлашув ускуналари","apiary layout tools","инструменты для планировки пасеки"
-]
 
-def is_asalari(text):
-    text = text.lower()
-    return any(w in text for w in ASALARI_WORDS)
+]
+def is_asalari(t): return any(w in t.lower() for w in ASALARI)
 
 # ================== FILES ==================
-def read_file(path):
-    if path.endswith(".docx"):
-        return "\n".join(p.text for p in Document(path).paragraphs)
-    if path.endswith(".pdf"):
-        return "\n".join(p.extract_text() for p in PdfReader(path).pages if p.extract_text())
-    if path.endswith(".txt"):
-        return open(path, encoding="utf-8", errors="ignore").read()
+def read_file(p):
+    if p.endswith(".docx"):
+        return "\n".join(x.text for x in Document(p).paragraphs)
+    if p.endswith(".pdf"):
+        return "\n".join(pg.extract_text() for pg in PdfReader(p).pages if pg.extract_text())
+    if p.endswith(".txt"):
+        return open(p, encoding="utf-8", errors="ignore").read()
     return ""
 
-def chunk_text(text):
-    return [text[i:i+CHUNK_SIZE] for i in range(0, len(text), CHUNK_SIZE)]
+def chunk(t): return [t[i:i+CHUNK_SIZE] for i in range(0,len(t),CHUNK_SIZE)]
 
 # ================== INDEX ==================
 def build_index():
@@ -623,7 +617,7 @@ def search_docs(q):
     _, I = index.search(np.array([emb]).astype("float32"), TOP_K)
     return [texts[i] for i in I[0]]
 
-# ================== AI ANSWER ==================
+# ================== AI ==================
 def ai_answer(uid, q):
     lang = detect_lang(q)
     basic = basic_chat(q)
@@ -658,156 +652,115 @@ def ai_answer(uid, q):
     )
     return r.choices[0].message.content.strip()
 
-# ================== BUTTON ==================
-def reset_button():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Yangi | Новый | New", callback_data="reset")]])
-
-# ================== LOG CHAT ==================
-async def log_chat(update: Update):
-    chat = update.effective_chat
-    user_stats.add(update.effective_user.id)
-    if chat.id not in chat_log:
-        chat_log[chat.id] = {
-            "title": chat.title or f"{update.effective_user.first_name}",
-            "type": chat.type
-        }
+# ================== UI ==================
+def reset_btn():
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Yangi savol",callback_data="reset")]])
 
 # ================== HANDLERS ==================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await log_chat(update)
-    await update.message.reply_text(
-        "🐝 Asalarichilik AI botga xush kelibsiz! Marhamat savol bering",
-        reply_markup=reset_button()
-    )
+async def start(u:Update,c): 
+    await u.message.reply_text("🐝 Asalarichilik AI bot",reply_markup=reset_btn())
 
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await log_chat(update)
-    uid = update.effective_user.id
-    q = update.message.text.strip()
-    questions_log.append(q)
-    ans = ai_answer(uid, q)
-    await update.message.reply_text(ans, reply_markup=reset_button())
-    if ADMIN_ID:
-        await context.bot.send_message(
-            ADMIN_ID,
-            f"👤 USER ID: {uid}\n🕒 {datetime.now()}\n❓ Savol: {q}\n✅ Javob: {ans}\n"
-            f"💬 Chat: {chat_log[update.effective_chat.id]['title']} ({chat_log[update.effective_chat.id]['type']})"
-        )
+async def text(u:Update,c):
+    uid=u.effective_user.id
+    txt=u.message.text
 
-async def reset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    uid = query.from_user.id
-    user_memory.pop(uid, None)
-    await query.answer()
-    await query.message.reply_text(
-        "✅ Context tozalandi. Yangi savol berishingiz mumkin.",
-        reply_markup=reset_button()
-    )
+    # 🔴 ADMIN reklama rejimi
+    if admin_mode.get(uid)=="ad":
+        ads.append(txt)
+        pickle.dump(ads, open(ADS_FILE,"wb"))
+        admin_mode.pop(uid)
+        await u.message.reply_text("✅ Reklama saqlandi")
+        return
 
-# ================== ADMIN PANEL ==================
-ADMIN_CHOOSE, ADMIN_UPLOAD, ADMIN_DELETE = range(3)
+    ans=ai_answer(uid,txt)
+    if ads: ans+="\n\n📣Tavsiya qilamiz! "+ads[-1]
+    await u.message.reply_text(ans,reply_markup=reset_btn())
 
-def admin_buttons():
+async def reset_cb(u:Update,c):
+    await u.callback_query.answer()
+    await u.callback_query.message.reply_text("✅ Yangi savol bering")
+
+# ================== ADMIN ==================
+ADMIN_CHOOSE,UPLOAD,DELETE=range(3)
+
+def admin_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📥 Fayl yuklash", callback_data="upload")],
-        [InlineKeyboardButton("🗑 Fayl o‘chirish", callback_data="delete")],
-        [InlineKeyboardButton("📊 Foydalanuvchi statistikasi", callback_data="stats")],
-        [InlineKeyboardButton("❌ Chiqish", callback_data="exit")]
+        [InlineKeyboardButton("📥 Fayl yuklash",callback_data="upload")],
+        [InlineKeyboardButton("🗑 Fayl o‘chirish",callback_data="delete")],
+        [InlineKeyboardButton("📣 Reklama",callback_data="ad")],
+        [InlineKeyboardButton("📊 Statistika",callback_data="stat")],
+        [InlineKeyboardButton("❌ Chiqish",callback_data="exit")]
     ])
 
-async def admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Siz admin emassiz")
+async def admin_start(u:Update,c):
+    if u.effective_user.id!=ADMIN_ID:
+        await u.message.reply_text("❌ Admin emas")
         return ConversationHandler.END
-    await update.message.reply_text("⚙️ Admin panelga xush kelibsiz", reply_markup=admin_buttons())
+    await u.message.reply_text("⚙️ Admin panel",reply_markup=admin_kb())
     return ADMIN_CHOOSE
 
-async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if query.data == "upload":
-        await query.message.reply_text("📥 Faylni yuboring (.txt, .pdf, .docx)")
-        return ADMIN_UPLOAD
-    if query.data == "delete":
-        files = os.listdir(DATA_DIR)
-        if not files:
-            await query.message.reply_text("❌ Data papka bo‘sh")
-            return ADMIN_CHOOSE
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton(f, callback_data=f"del::{f}")] for f in files])
-        await query.message.reply_text("🗑 O‘chirish uchun faylni tanlang", reply_markup=kb)
-        return ADMIN_DELETE
-    if query.data == "stats":
-        chats = "\n".join([f"{v['title']} ({v['type']})" for v in chat_log.values()])
-        await query.message.reply_text(
-            f"📊 Foydalanuvchilar: {len(user_stats)}\n"
-            f"📩 Savollar: {len(questions_log)}\n"
-            f"💬 Guruhlar/kanallar:\n{chats}"
-        )
+async def admin_cb(u:Update,c):
+    q=u.callback_query
+    await q.answer()
+
+    if q.data=="upload":
+        await q.message.reply_text("📥 Fayl yuboring")
+        return UPLOAD
+
+    if q.data=="delete":
+        files=os.listdir(DATA_DIR)
+        kb=[[InlineKeyboardButton(f,callback_data=f"del::{f}")] for f in files]
+        await q.message.reply_text("🗑 Fayl tanlang",reply_markup=InlineKeyboardMarkup(kb))
+        return DELETE
+
+    if q.data=="ad":
+        admin_mode[q.from_user.id]="ad"
+        await q.message.reply_text("📣 Reklama matnini kiriting")
         return ADMIN_CHOOSE
-    if query.data == "exit":
-        await query.message.reply_text("❌ Admin paneldan chiqildi")
+
+    if q.data=="stat":
+        await q.message.reply_text(f"👥 Userlar: {len(user_stats)}\n❓ Savollar: {len(questions_log)}")
+        return ADMIN_CHOOSE
+
+    if q.data=="exit":
+        await q.message.reply_text("❌ Chiqildi")
         return ConversationHandler.END
-    return ADMIN_CHOOSE
 
-async def admin_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    doc = update.message.document
-    if not doc:
-        await update.message.reply_text("❌ Fayl topilmadi")
-        return ADMIN_UPLOAD
-    filename = doc.file_name
-    if not filename.endswith((".txt", ".pdf", ".docx")):
-        await update.message.reply_text("❌ Faqat .txt/.pdf/.docx fayllar qabul qilinadi")
-        return ADMIN_UPLOAD
-    path = os.path.join(DATA_DIR, filename)
-    file_obj = await doc.get_file()
-    await file_obj.download_to_drive(custom_path=path)  # async PTB v20+
-    await update.message.reply_text(f"✅ {filename} yuklandi. Indeks yangilanmoqda...")
+async def admin_file(u:Update,c):
+    d=u.message.document
+    p=os.path.join(DATA_DIR,d.file_name)
+    await (await d.get_file()).download_to_drive(p)
     build_index()
-    await update.message.reply_text("✅ Indeks yangilandi")
+    await u.message.reply_text("✅ Yuklandi va indeks yangilandi")
     return ADMIN_CHOOSE
 
-async def admin_delete_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-    if data.startswith("del::"):
-        filename = data.split("::")[1]
-        path = os.path.join(DATA_DIR, filename)
-        if os.path.exists(path):
-            os.remove(path)
-            await query.message.reply_text(f"✅ {filename} o‘chirildi. Indeks yangilanmoqda...")
-            build_index()
-            await query.message.reply_text("✅ Indeks yangilandi")
-        else:
-            await query.message.reply_text("❌ Fayl topilmadi")
+async def admin_del(u:Update,c):
+    q=u.callback_query
+    f=q.data.split("::")[1]
+    os.remove(os.path.join(DATA_DIR,f))
+    build_index()
+    await q.message.reply_text("✅ O‘chirildi")
     return ADMIN_CHOOSE
 
 # ================== MAIN ==================
-if __name__ == "__main__":
-    if not os.path.exists(DATA_DIR):
-        os.makedirs(DATA_DIR)
-    if not os.path.exists(INDEX_FILE):
-        build_index()
+if __name__=="__main__":
+    os.makedirs(DATA_DIR,exist_ok=True)
+    app=ApplicationBuilder().token(BOT_TOKEN).build()
 
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start",start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,text))
+    app.add_handler(CallbackQueryHandler(reset_cb,pattern="^reset$"))
 
-    # Oddiy foydalanuvchi
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    app.add_handler(CallbackQueryHandler(reset_callback, pattern="^reset$"))
-
-    # Admin panel
-    admin_conv = ConversationHandler(
-        entry_points=[CommandHandler("admin", admin_start)],
+    admin_conv=ConversationHandler(
+        entry_points=[CommandHandler("admin",admin_start)],
         states={
-            ADMIN_CHOOSE: [CallbackQueryHandler(admin_callback)],
-            ADMIN_UPLOAD: [MessageHandler(filters.Document.ALL & ~filters.COMMAND, admin_file)],
-            ADMIN_DELETE: [CallbackQueryHandler(admin_delete_file, pattern="^del::")]
+            ADMIN_CHOOSE:[CallbackQueryHandler(admin_cb)],
+            UPLOAD:[MessageHandler(filters.Document.ALL,admin_file)],
+            DELETE:[CallbackQueryHandler(admin_del,pattern="^del::")]
         },
-        fallbacks=[],
-        per_message=False
+        fallbacks=[]
     )
     app.add_handler(admin_conv)
 
-    print("🐝 BOT ISHGA TUSHDI")
+    print("🐝 BOT ISHGA TUSHDI (TO‘LIQ)")
     app.run_polling()
