@@ -53,6 +53,7 @@ user_memory = {}      # user_id -> savollar
 questions_log = []    # savollar logi
 user_stats = set()    # user_id lar
 chat_log = {}         # chat_id -> {"title": str, "type": str}
+
 # ================== BASIC CHAT ==================
 def basic_chat(text):
     t = text.lower()
@@ -560,6 +561,11 @@ def read_file(p):
 def chunk(t): return [t[i:i+CHUNK_SIZE] for i in range(0,len(t),CHUNK_SIZE)]
 
 # ================== INDEX ==================
+def chunk_text(text, size=1000):
+    if not text:
+        return []
+    return [text[i:i+size] for i in range(0, len(text), size)]
+
 def build_index():
     print("♻️ INDEX YARATILYAPTI...")
     docs = []
