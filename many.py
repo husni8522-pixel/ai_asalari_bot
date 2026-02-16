@@ -1,16 +1,19 @@
 # ================== IMPORTS ==================
-import os, pickle, faiss, numpy as np, asyncio
-from datetime import datetime
+import os
+import pickle
+import faiss
+import numpy as np
 from dotenv import load_dotenv
 from langdetect import detect
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, MessageHandler, CommandHandler,
-    CallbackQueryHandler, filters
+    ContextTypes, CallbackQueryHandler, ConversationHandler, filters
 )
 from openai import OpenAI
 from docx import Document
 from pypdf import PdfReader
+from datetime import datetime
 
 # ================== CONFIG ==================
 DATA_DIR = "data"
@@ -20,8 +23,7 @@ ADS_FILE = "ads.pkl"
 
 CHUNK_SIZE = 1000
 BATCH_SIZE = 32
-TOP_K = 6
-MAX_MEMORY = 5  # user xotira uzunligi
+TOP_K = 8
 
 # ================== ENV ==================
 load_dotenv()
@@ -32,34 +34,27 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 client = OpenAI(api_key=OPENAI_KEY)
 
 # ================== GLOBAL ==================
-user_profiles = {}   # user_id -> {"lang","last_questions","topics","style"}
-user_stats = set()
+user_memory = {}
 questions_log = []
-admin_mode = {}
-
-DEFAULT_ADS = {
-    "uz": [],
-    "ru": [],
-    "en": []
-}
+user_stats = set()
+chat_log = {}
 
 if os.path.exists(ADS_FILE):
-    ads = pickle.load(open(ADS_FILE, "rb"))
-
-    # eski format (list) bo‘lsa — avtomatik moslashtiramiz
-    if isinstance(ads, list):
-        ads = {
-            "uz": ads,
-            "ru": ads,
-            "en": ads
-        }
+    try:
+        ads = pickle.load(open(ADS_FILE, "rb"))
+        if not isinstance(ads, list):
+            ads = []
+    except:
+        ads = []
 else:
-    ads = DEFAULT_ADS
+    ads = []
+
+admin_mode = {}
 
 # ================== LANGUAGE ==================
-def detect_lang(text):
+def detect_lang(t):
     try:
-        l = detect(text)
+        l = detect(t)
         return "ru" if l.startswith("ru") else "en" if l.startswith("en") else "uz"
     except:
         return "uz"
@@ -68,41 +63,44 @@ def detect_lang(text):
 def basic_chat(text):
     t = text.lower()
     if any(w in t for w in ["salom","assalomu","hello","hi","привет"]):
-        return {
-            "uz":"Assalomu alaykum 😊 Savolingizni yozing.",
-            "ru":"Здравствуйте 😊 Задайте вопрос.",
-            "en":"Hello 😊 Ask your question."
-        }
-    if any(w in t for w in ["rahmat","raxmat","спасибо","thank"]):
-        return {
-            "uz":"Arzimaydi 😊",
-            "ru":"Пожалуйста 😊",
-            "en":"You're welcome 😊"
-        }
-    if any(w in t for w in ["sani kim yaratgan","seni kim yaratgan","sen kim"]):
-        return {
-            "uz":"Men Husniddin Zaripov tomonidan yaratilgan botman. @zhn8522",
-            "ru":"Мен создан ботом Хусниддин Зарипов. @zhn8522",
-            "en":"I am a bot created by Husniddin Zaripov. @zhn8522"
-        }
+        return {"uz":"Assalomu alaykum 😊 nima xizmat. savol bormi?",
+                "ru":"Здравствуйте 😊 Задайте вопрос.",
+                "en":"Hello 😊 Ask your question."}
+    if any(w in t for w in ["xayr","hayr","goodbye","bye","пока","до свидания"]):
+        return {"uz":"Xayr! Sizni kutib qolamiz 😊",
+                "ru":"До свидания! Будем рады вас видеть снова 😊",
+                "en":"Goodbye! We hope to see you again 😊"}
+    if any(w in t for w in ["rahmat","raxmat","рахмат","спасибо","thank you"]):
+        return {"uz":"Siz uchun hursandman. Arzimaydi 😊",
+                "ru":"Рад помочь! Не за что 😊",
+                "en":"I’m happy to help. You’re welcome 😊"}
+    if any(w in t for w in ["sani kim yaratgan","seni kim yaratgan","sani kim tuzgan","seni kim tuzgan",
+                            "sen kim","sani kim","kim san","kim sen","kim tuzgan"]):
+        return {"uz":"Men akajonim Husniddin Zaripov tomonidan yaratilgan botman. Akamni duolarizda eslab qo‘ying @zhn8522😊",
+                "ru":"Мен создан ботом Хусниддин Зарипов. Помните моего брата в ваших молитвах @zhn8522 😊",
+                "en":"I am a bot created by Husniddin Zaripov. Keep my brother in your prayers @zhn8522 😊"}
+    if any(w in t for w in ["qanday aloqaga chiqamiz","aloqa","contact","how to contact"]):
+        return {"uz":"Aloqa uchun: +998973850026 📞",
+                "ru":"Связь: +998973850026 📞",
+                "en":"Contact: +998973850026 📞"}
     return None
 
-# ================== ASALARI WORDS ==================
-ASALARI_WORDS = {
+# ================== ASALARI ==================
+ASALARI = [
     "ari","asalari ich ketishi","asalarim","qishki ozuqa","arilar","asal","asalarichilik","asalarichi","ari oilasi","qirolicha",
-"ona ari","ishchi ari","erkak ari","qandi","kandi","nuklius","asalarilarim","asalarilar rivojlanishi uchun","asalari rivojlanishi uchun",
+"ona ari","ishchi ari","erkak ari","qandi","kandi","nuklius","asalarilarim",
 "ari","асалари","bee","пчела","qishki oziqa","oziqa","asalari ozuqasi kamayib qolibdi qishda nima qilishim kerak",
-"asalari","асалари","honeybee","медоносная пчела","Asalarilarning kuchi kam nima qilish kerak","asalarichilikni","asalarichilikni nimadan boshlash",
-"asalarichilik","асаларичилик","beekeeping","пчеловодство","asalari","asalarichi", "Где можно купить пчелиную семью","Где можно приобрести пчелиную семью",
-"asalarichi","асаларичи","beekeeper","пчеловод","Где можно купить пчелиную матку","Где можно приобрести матку пчелы","Где можно купить оборудование для пчеловодства",
-"ari oilasi","ари оиласи","bee colony","пчелиная семья","Где можно приобрести пчелиную семью в кредит","Покупка пчелиной матки","Покупка пчёл","Покупка пчелиной семьи",
-"ari koloniyasi","ари колонияси","bee colony","пчелиная колония","Покупка пород пчёл",
-"ona ari","она ари","queen bee","матка","Where can I buy a bee colony","Where can I purchase a bee family","Where can I buy a queen bee","Where can I buy beekeeping equipment",
-"qirolicha ari","қиролича ари","queen bee","пчелиная матка","Where can I buy a bee colony on credit",
-"ishchi ari","ишчи ари","worker bee","рабочая пчела","Asalarilari oilasini qaerdan sotib olsam buladi","Asalarilari onasi qaerdan sotib olsam buladi",
-"erkak ari","эркак ари","drone bee","трутень","Ona arini qaerdan sotib olsam buladi","Asalarichilik jixozlarini qayerdan sotib olsam bo’ladi",
-"truten","трутен","drone","трутень","Asalari oilasini kreditga qayerdan olsam buladi",
-"matka","матка","queen","матка","Ona asalari sotib olish","Asalarilar sotib olish","Asalari oilasini sotib olish","Asalari zotlarini sotib olish",
+"asalari","асалари","honeybee","медоносная пчела","Asalarilarning kuchi kam nima qilish kerak",
+"asalarichilik","асаларичилик","beekeeping","пчеловодство",
+"asalarichi","асаларичи","beekeeper","пчеловод",
+"ari oilasi","ари оиласи","bee colony","пчелиная семья",
+"ari koloniyasi","ари колонияси","bee colony","пчелиная колония",
+"ona ari","она ари","queen bee","матка",
+"qirolicha ari","қиролича ари","queen bee","пчелиная матка",
+"ishchi ari","ишчи ари","worker bee","рабочая пчела",
+"erkak ari","эркак ари","drone bee","трутень",
+"truten","трутен","drone","трутень",
+"matka","матка","queen","матка",
 "ari uyasi","ари уяси","hive","улей",
 "katta uya","катта уя","large hive","большой улей",
 "kichik uya","кичик уя","small hive","малый улей",
@@ -552,264 +550,230 @@ ASALARI_WORDS = {
 "queen introduction tool","она ари қўйиш ускуналари","queen introduction tool","инструмент для подсадки матки",
 "hive ventilator","уя вентилятори","hive ventilator","вентилятор улья",
 "apiary layout tools","апиари жойлашув ускуналари","apiary layout tools","инструменты для планировки пасеки"
-}
+]
+def is_asalari(t):
+    return any(w in t.lower() for w in ASALARI)
 
-# ================== CONTEXT-AWARE CHECK ==================
-def is_asalari(text, uid=None):
-    words = set(text.lower().split())
-    if words & ASALARI_WORDS:
-        return True
-    if uid and uid in user_profiles:
-        last_qs = user_profiles[uid].get("last_questions", [])
-        if last_qs:
-            last = last_qs[-1].lower()
-            if set(last.split()) & ASALARI_WORDS:
-                return True
-    return False
-
-# ================== USER MEMORY ==================
-def update_user_profile(uid, text, lang):
-    profile = user_profiles.setdefault(uid, {
-        "lang": lang,
-        "topics": {},
-        "last_questions": [],
-        "style": "short"
-    })
-    profile["lang"] = lang
-    profile["last_questions"].append(text)
-    if len(profile["last_questions"]) > MAX_MEMORY:
-        profile["last_questions"].pop(0)
-    keywords = ["varroa","kana","qish","ozuqa","asal","ona","kasallik"]
-    for k in keywords:
-        if k in text.lower():
-            profile["topics"][k] = profile["topics"].get(k, 0) + 1
-    if len(profile["last_questions"]) > 3:
-        profile["style"] = "detailed"
-
-# ================== FILE READ ==================
-def read_file(path):
-    if path.endswith(".docx"):
-        return "\n".join(p.text for p in Document(path).paragraphs)
-    if path.endswith(".pdf"):
-        return "\n".join(p.extract_text() for p in PdfReader(path).pages if p.extract_text())
-    if path.endswith(".txt"):
-        return open(path, encoding="utf-8", errors="ignore").read()
+# ================== FILES ==================
+def read_file(p):
+    try:
+        if p.endswith(".docx"):
+            return "\n".join(x.text for x in Document(p).paragraphs)
+        if p.endswith(".pdf"):
+            return "\n".join(pg.extract_text() or "" for pg in PdfReader(p).pages)
+        if p.endswith(".txt"):
+            with open(p, encoding="utf-8", errors="ignore") as f:
+                return f.read()
+    except Exception as e:
+        print(f"❌ File read error: {p} -> {e}")
     return ""
 
-def chunk_text(text):
-    return [text[i:i+CHUNK_SIZE] for i in range(0, len(text), CHUNK_SIZE)]
+def chunk_text(text, size=CHUNK_SIZE):
+    if not text:
+        return []
+    return [text[i:i+size] for i in range(0, len(text), size)]
 
 # ================== INDEX ==================
 def build_index():
+    print("♻️ INDEX YARATILYAPTI...")
     docs = []
     os.makedirs(DATA_DIR, exist_ok=True)
+
     for f in os.listdir(DATA_DIR):
         if f.endswith((".pdf",".docx",".txt")):
-            text = read_file(os.path.join(DATA_DIR,f))
+            text = read_file(os.path.join(DATA_DIR, f))
             for c in chunk_text(text):
-                if len(c.strip()) > 50:
+                if len(c.strip())>50 and is_asalari(c):
                     docs.append(c.strip())
+
     if not docs:
-        return "❌ Hujjat topilmadi"
+        print("❌ DATA papkada mos hujjat yo‘q")
+        return
+
     vectors = []
-    for i in range(0, len(docs), BATCH_SIZE):
-        r = client.embeddings.create(model="text-embedding-3-small", input=docs[i:i+BATCH_SIZE])
-        vectors.extend([d.embedding for d in r.data])
+    for i in range(0,len(docs),BATCH_SIZE):
+        try:
+            r = client.embeddings.create(model="text-embedding-3-small", input=docs[i:i+BATCH_SIZE])
+            vectors.extend([d.embedding for d in r.data])
+        except Exception as e:
+            print(f"❌ Embedding error: {e}")
+
+    if not vectors:
+        print("❌ Vektorlar yaratilmadi")
+        return
+
     index = faiss.IndexFlatL2(len(vectors[0]))
     index.add(np.array(vectors).astype("float32"))
-    faiss.write_index(index, INDEX_FILE)
-    pickle.dump(docs, open(META_FILE,"wb"))
-    return f"✅ Indeks yangilandi ({len(docs)} bo‘lak)"
 
-def search_docs(query):
-    if not os.path.exists(INDEX_FILE):
+    faiss.write_index(index, INDEX_FILE)
+    pickle.dump(docs, open(META_FILE, "wb"))
+    print("✅ INDEX TAYYOR")
+
+def index_invalid():
+    return (not os.path.exists(INDEX_FILE) or not os.path.exists(META_FILE)
+            or os.path.getsize(INDEX_FILE)<1000 or os.path.getsize(META_FILE)<50)
+
+def search_docs(q):
+    if index_invalid():
+        build_index()
+        if index_invalid():
+            return []
+    try:
+        index = faiss.read_index(INDEX_FILE)
+        texts = pickle.load(open(META_FILE,"rb"))
+        emb = client.embeddings.create(model="text-embedding-3-small", input=[q]).data[0].embedding
+        _, I = index.search(np.array([emb]).astype("float32"), TOP_K)
+        return [texts[i] for i in I[0]]
+    except Exception as e:
+        print(f"❌ Search error: {e}")
         return []
-    index = faiss.read_index(INDEX_FILE)
-    texts = pickle.load(open(META_FILE,"rb"))
-    emb = client.embeddings.create(model="text-embedding-3-small", input=[query]).data[0].embedding
-    _, I = index.search(np.array([emb]).astype("float32"), TOP_K)
-    return [texts[i] for i in I[0]]
 
 # ================== AI ==================
-def ai_answer(uid, q):
+def ai_answer(uid,q):
     lang = detect_lang(q)
-
     basic = basic_chat(q)
-    if basic:
-        return basic[lang]
-
-    if not is_asalari(q, uid):
-        return {
-            "uz": "🐝 Bot faqat asalarichilik uchun.",
-            "ru": "🐝 Бот только для пчеловодства.",
-            "en": "🐝 This bot is for beekeeping only."
-        }[lang]
-
-    profile = user_profiles.get(uid, {})
-    style = profile.get("style", "short")
-
-    search_query = " ".join(profile.get("last_questions", [])[-2:] + [q])
-    ctx = "\n".join(search_docs(search_query))
-
+    if basic: return basic[lang]
+    if uid not in user_memory: user_memory[uid]=[]
+    if not is_asalari(q):
+        return {"uz":"🐝 Bu bot faqat asalarichilik uchun.",
+                "ru":"🐝 Бот только для пчеловодства.",
+                "en":"🐝 This bot is for beekeeping only."}[lang]
+    user_memory[uid].append(q)
+    ctx="\n".join(search_docs(q))
     if not ctx:
-        return {
-            "uz": "❌ Ma’lumot topilmadi.",
-            "ru": "❌ Информация не найдена.",
-            "en": "❌ No information found."
-        }[lang]
-
-    fav = sorted(
-        profile.get("topics", {}).items(),
-        key=lambda x: x[1],
-        reverse=True
-    )[:2]
-
-    memory_hint = (
-        f"User ko‘p qiziqadigan mavzular: {', '.join(x[0] for x in fav)}"
-        if fav else ""
-    )
-
-    lang_instruction = {
-        "uz": "Javobni O‘ZBEK tilida ber.",
-        "ru": "Отвечай ТОЛЬКО на русском языке.",
-        "en": "Answer ONLY in English."
-    }[lang]
-
-    prompt = f"""
-You are an expert beekeeper.
-{lang_instruction}
-
-{memory_hint}
-
-STYLE = {style}
-(short = qisqa, detailed = batafsil)
-
-Kontekst:
-{ctx}
-
-Savol: {q}
-"""
-
-    r = client.responses.create(
-        model="gpt-4.1-mini",
-        input=prompt
-    )
-
-    return r.output_text.strip()
+        return {"uz":"❌ Ma’lumot topilmadi.",
+                "ru":"❌ Информация не найдена.",
+                "en":"❌ No information found."}[lang]
+    try:
+        r=client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[{"role":"system","content":"You are an expert beekeeper."},
+                      {"role":"user","content":f"{ctx}\n\nSavol: {q}"}],
+            temperature=0.3
+        )
+        return r.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"❌ AI completion error: {e}")
+        return {"uz":"❌ Javob olishda xatolik.",
+                "ru":"❌ Ошибка при получении ответа.",
+                "en":"❌ Error getting answer."}[lang]
 
 # ================== UI ==================
 def reset_btn():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Yangi savol", callback_data="reset")]])
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🔄",callback_data="reset")]])
 
 # ================== HANDLERS ==================
-from datetime import datetime
-async def start(u: Update, c):
+# ================== /start ==================
+async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    chat_log[u.effective_chat.id] = {
+        "title": u.effective_chat.title or "Private chat",
+        "type": u.effective_chat.type
+    }
+
+    # Til tugmalari
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🇺🇿 O‘zbekcha", callback_data="lang_uz")],
+        [InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru")],
+        [InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")]
+    ])
+
     await u.message.reply_text(
-        "🐝 Asalarichilik AI bot",
-        reply_markup=reset_btn()
+        "Tilni tanlang / Choose your language / Выберите язык:",
+        reply_markup=kb
     )
-async def text(u: Update, c):
-    uid = u.effective_user.id
-    txt = u.message.text
 
-    user_stats.add(uid)
-    questions_log.append(txt)
+# ================== TIL CALLBACK ==================
+async def lang_cb(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    q = u.callback_query
+    await q.answer()
+    
+    texts = {
+        "lang_uz": "🐝 Assalomu alaykum! Men asalarichi botman. Marhamat, savol bering! "
+                   "Iltimos, savollaringizni butun dunyo tushunadigan asalarichilik terminlariga asoslanib bering. "
+                   "Mendagi ma’lumotlar adabiy va ommaviy uslubda kiritilgan.",
+        "lang_ru": "🐝 Здравствуйте! Я бот-пчеловод. Пожалуйста, задавайте вопросы! "
+                   "Прошу формулировать их, используя международно понятные термины пчеловодства. "
+                   "Мои данные представлены в литературной и популярной форме.",
+        "lang_en": "🐝 Hello! I am a beekeeping bot. Please, ask your questions! "
+                   "Kindly phrase them using globally recognized beekeeping terminology. "
+                   "My information is provided in both literary and popular style."
+    }
 
-    lang = detect_lang(txt)
-    update_user_profile(uid, txt, lang)
+    await q.message.reply_text(texts.get(q.data, "🐝 Assalomu alaykum!"), reply_markup=reset_btn())
 
-    # 🔧 Admin reklama kiritish rejimi
-    if admin_mode.get(uid) == "ad":
-        ads.append({
-            "lang": lang,
-            "text": txt
-        })
-        pickle.dump(ads, open(ADS_FILE, "wb"))
+
+async def text(u:Update,c:ContextTypes.DEFAULT_TYPE):
+    uid=u.effective_user.id
+    txt=u.message.text
+    if admin_mode.get(uid)=="ad":
+        if isinstance(ads,list):
+            ads.append(txt)
+            pickle.dump(ads, open(ADS_FILE,"wb"))
         admin_mode.pop(uid)
         await u.message.reply_text("✅ Reklama saqlandi")
         return
-
-    # 🤖 AI javob
-    ans = ai_answer(uid, txt)
-
-    # 📣 TILGA MOS REKLAMA
-    lang_ads = [a["text"] for a in ads if a.get("lang") == lang]
-
-    if lang_ads:
-        ans += "\n\n📣 " + lang_ads[-1]
-
-    # 👤 Foydalanuvchiga javob
-    await u.message.reply_text(ans, reply_markup=reset_btn())
-
-    # 🔔 Adminga real-time log
+    ans=ai_answer(uid,txt)
+    if isinstance(ads,list) and ads: ans+=f"\n\n📣 Tavsiya qilamiz! {ads[-1]}"
+    await u.message.reply_text(ans,reply_markup=reset_btn())
     if ADMIN_ID:
-        chat_title = getattr(u.effective_chat, "title", "Private chat")
-        chat_type = getattr(u.effective_chat, "type", "private")
+        chat_title=chat_log.get(u.effective_chat.id,{}).get("title","Private chat")
+        chat_type=chat_log.get(u.effective_chat.id,{}).get("type",u.effective_chat.type)
+        msg=(f"👤 USER ID: {uid}\n🕒 {datetime.now()}\n❓ Savol: {txt}\n✅ Javob: {ans}\n"
+             f"💬 Chat: {chat_title} ({chat_type})")
+        await c.bot.send_message(chat_id=ADMIN_ID,text=msg)
 
-        msg = (
-            f"👤 USER ID: {uid}\n"
-            f"🕒 {datetime.now()}\n"
-            f"🌐 Lang: {lang}\n"
-            f"❓ Savol:\n{txt}\n\n"
-            f"✅ Javob:\n{ans}\n\n"
-            f"💬 Chat: {chat_title} ({chat_type})"
-        )
-
-        await c.bot.send_message(chat_id=ADMIN_ID, text=msg)
-
-
-async def reset_cb(u:Update,c):
+async def reset_cb(u:Update,c:ContextTypes.DEFAULT_TYPE):
     await u.callback_query.answer()
-    await u.callback_query.message.reply_text("Yangi savol bering 🐝")
+    await u.callback_query.message.reply_text("✅",reply_markup=reset_btn())
 
 # ================== ADMIN ==================
-ADMIN_CHOOSE, UPLOAD, DELETE = range(3)
+ADMIN_CHOOSE,UPLOAD,DELETE=range(3)
 
 def admin_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📥 Fayl yuklash", callback_data="upload")],
-        [InlineKeyboardButton("🗑 Fayl o‘chirish", callback_data="delete")],
-        [InlineKeyboardButton("📣 Reklama", callback_data="ad")],
-        [InlineKeyboardButton("📊 Statistika", callback_data="stat")],
-        [InlineKeyboardButton("❌ Chiqish", callback_data="exit")]
+        [InlineKeyboardButton("📥 Fayl yuklash",callback_data="upload")],
+        [InlineKeyboardButton("🗑 Fayl o‘chirish",callback_data="delete")],
+        [InlineKeyboardButton("♻️ Reindex",callback_data="reindex")],
+        [InlineKeyboardButton("📣 Reklama",callback_data="ad")],
+        [InlineKeyboardButton("📊 Statistika",callback_data="stat")],
+        [InlineKeyboardButton("❌ Chiqish",callback_data="exit")]
     ])
 
-async def admin_start(u:Update,c):
-    if u.effective_user.id != ADMIN_ID:
+async def admin_start(u:Update,c:ContextTypes.DEFAULT_TYPE):
+    if u.effective_user.id!=ADMIN_ID:
         await u.message.reply_text("❌ Admin emas")
-        return
-    await u.message.reply_text("⚙️ Admin panel", reply_markup=admin_kb())
+        return ConversationHandler.END
+    await u.message.reply_text("⚙️ Admin panel",reply_markup=admin_kb())
     return ADMIN_CHOOSE
 
-async def admin_cb(u:Update,c):
-    q = u.callback_query
+async def admin_cb(u:Update,c:ContextTypes.DEFAULT_TYPE):
+    q=u.callback_query
     await q.answer()
     if q.data=="upload":
         await q.message.reply_text("📥 Fayl yuboring")
         return UPLOAD
     if q.data=="delete":
-        files = os.listdir(DATA_DIR)
+        files=os.listdir(DATA_DIR)
         kb=[[InlineKeyboardButton(f,callback_data=f"del::{f}")] for f in files]
-        await q.message.reply_text("🗑 Fayl tanlang", reply_markup=InlineKeyboardMarkup(kb))
+        await q.message.reply_text("🗑 Fayl tanlang",reply_markup=InlineKeyboardMarkup(kb))
         return DELETE
     if q.data=="ad":
         admin_mode[q.from_user.id]="ad"
         await q.message.reply_text("📣 Reklama matnini kiriting")
         return ADMIN_CHOOSE
     if q.data=="stat":
-        last_qs_preview = "\n".join(f"{i+1}. ({uid}) {txt}" 
-                                     for i, (uid, txt) in enumerate(zip(user_stats, questions_log[-10:])))
-        await q.message.reply_text(
-            f"👥 Userlar: {len(user_stats)}\n"
-            f"❓ Savollar: {len(questions_log)}\n"
-            f"📝 Oxirgi savollar:\n{last_qs_preview if last_qs_preview else 'Hech narsa yo‘q'}"
-        )
+        await q.message.reply_text(f"👥 Userlar: {len(user_stats)}\n❓ Savollar: {len(questions_log)}")
+        return ADMIN_CHOOSE
+    if q.data=="reindex":
+        await q.message.reply_text("♻️ Indeks yangilanmoqda, biroz kuting...")
+        build_index()
+        await q.message.reply_text("✅ Indeks yangilandi!")
         return ADMIN_CHOOSE
     if q.data=="exit":
         await q.message.reply_text("❌ Chiqildi")
-        return
+        return ConversationHandler.END
 
-async def admin_file(u:Update,c):
+async def admin_file(u:Update,c:ContextTypes.DEFAULT_TYPE):
     d=u.message.document
     p=os.path.join(DATA_DIR,d.file_name)
     await (await d.get_file()).download_to_drive(p)
@@ -817,7 +781,7 @@ async def admin_file(u:Update,c):
     await u.message.reply_text("✅ Yuklandi va indeks yangilandi")
     return ADMIN_CHOOSE
 
-async def admin_del(u:Update,c):
+async def admin_del(u:Update,c:ContextTypes.DEFAULT_TYPE):
     q=u.callback_query
     f=q.data.split("::")[1]
     os.remove(os.path.join(DATA_DIR,f))
@@ -825,25 +789,28 @@ async def admin_del(u:Update,c):
     await q.message.reply_text("✅ O‘chirildi")
     return ADMIN_CHOOSE
 
-async def reindex(u:Update,c):
-    if u.effective_user.id != ADMIN_ID:
-        return
-    await u.message.reply_text("♻️ Indeks yangilanmoqda...")
-    res = await asyncio.to_thread(build_index)
-    await u.message.reply_text(res)
-
 # ================== MAIN ==================
-if __name__ == "__main__":
+if __name__=="__main__":
     os.makedirs(DATA_DIR, exist_ok=True)
-
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
+    # Foydalanuvchi uchun handlerlar
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin))
-    app.add_handler(CommandHandler("reindex", reindex))
-
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text))
     app.add_handler(CallbackQueryHandler(reset_cb, pattern="^reset$"))
+    app.add_handler(CallbackQueryHandler(lang_cb, pattern="^lang_"))  # Til tanlash callbacki
 
-    print("🐝 BOT ISHGA TUSHDI")
+    # Admin panel uchun ConversationHandler
+    admin_conv = ConversationHandler(
+        entry_points=[CommandHandler("admin", admin_start)],
+        states={
+            ADMIN_CHOOSE: [CallbackQueryHandler(admin_cb)],
+            UPLOAD: [MessageHandler(filters.Document.ALL, admin_file)],
+            DELETE: [CallbackQueryHandler(admin_del, pattern="^del::")]
+        },
+        fallbacks=[]
+    )
+    app.add_handler(admin_conv)
+
+    print("🐝 BOT ISHGA TUSHDI (TO‘LIQ)")
     app.run_polling()
