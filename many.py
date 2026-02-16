@@ -702,46 +702,57 @@ def reset_btn():
     return InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Yangi savol", callback_data="reset")]])
 
 # ================== HANDLERS ==================
-async def start(u:Update,c):
-    await u.message.reply_text("🐝 Asalarichilik AI bot", reply_markup=reset_btn())
+from datetime import datetime
 
-async def text(u:Update,c):
+async def text(u: Update, c):
     uid = u.effective_user.id
     txt = u.message.text
 
     user_stats.add(uid)
     questions_log.append(txt)
+
     lang = detect_lang(txt)
     update_user_profile(uid, txt, lang)
 
+    # 🔧 Admin reklama kiritish rejimi
     if admin_mode.get(uid) == "ad":
-        ads.append(txt)
-        pickle.dump(ads, open(ADS_FILE,"wb"))
+        ads.append({
+            "lang": lang,
+            "text": txt
+        })
+        pickle.dump(ads, open(ADS_FILE, "wb"))
         admin_mode.pop(uid)
         await u.message.reply_text("✅ Reklama saqlandi")
         return
 
+    # 🤖 AI javob
     ans = ai_answer(uid, txt)
-lang_ads = ads.get(lang, [])
 
-if lang_ads:
-    ans += "\n\n📣 " + lang_ads[-1]
+    # 📣 TILGA MOS REKLAMA
+    lang_ads = [a["text"] for a in ads if a.get("lang") == lang]
 
-    # Foydalanuvchiga javob
+    if lang_ads:
+        ans += "\n\n📣 " + lang_ads[-1]
+
+    # 👤 Foydalanuvchiga javob
     await u.message.reply_text(ans, reply_markup=reset_btn())
 
-    # 🔔 Adminga ham real vaqt log
+    # 🔔 Adminga real-time log
     if ADMIN_ID:
         chat_title = getattr(u.effective_chat, "title", "Private chat")
         chat_type = getattr(u.effective_chat, "type", "private")
+
         msg = (
             f"👤 USER ID: {uid}\n"
             f"🕒 {datetime.now()}\n"
-            f"❓ Savol: {txt}\n"
-            f"✅ Javob: {ans}\n"
+            f"🌐 Lang: {lang}\n"
+            f"❓ Savol:\n{txt}\n\n"
+            f"✅ Javob:\n{ans}\n\n"
             f"💬 Chat: {chat_title} ({chat_type})"
         )
+
         await c.bot.send_message(chat_id=ADMIN_ID, text=msg)
+
 
 async def reset_cb(u:Update,c):
     await u.callback_query.answer()
