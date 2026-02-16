@@ -681,7 +681,7 @@ async def text(u:Update,c):
         return
 
     ans = ai_answer(uid, txt)
-    if ads and len(questions_log) >= 1:
+    if ads and len(questions_log) % 2 == 0:
     ans += "\n\n📣 Tavsiya: " + ads[-1]
 
     # Foydalanuvchiga javob
