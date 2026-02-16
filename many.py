@@ -707,7 +707,7 @@ async def start(u: Update, c):
     await u.message.reply_text(
         "🐝 Asalarichilik AI bot",
         reply_markup=reset_btn()
-
+    )
 async def text(u: Update, c):
     uid = u.effective_user.id
     txt = u.message.text
