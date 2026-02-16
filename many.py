@@ -829,16 +829,17 @@ async def reindex(u:Update,c):
     await u.message.reply_text(res)
 
 # ================== MAIN ==================
-if __name__=="__main__":
+if __name__ == "__main__":
     os.makedirs(DATA_DIR, exist_ok=True)
+
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin_start))
+    app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("reindex", reindex))
+
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text))
     app.add_handler(CallbackQueryHandler(reset_cb, pattern="^reset$"))
-    app.add_handler(CallbackQueryHandler(admin_cb))
 
-    print("🐝 BOT ISHGA TUSHDI (KONTEKST + XOTIRA + ADMIN LOG)")
+    print("🐝 BOT ISHGA TUSHDI")
     app.run_polling()
