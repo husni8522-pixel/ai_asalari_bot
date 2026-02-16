@@ -616,37 +616,51 @@ def search_docs(query):
 # ================== AI ==================
 def ai_answer(uid, q):
     lang = detect_lang(q)
+
     basic = basic_chat(q)
     if basic:
         return basic[lang]
+
     if not is_asalari(q, uid):
         return {
-            "uz":"🐝 Bot faqat asalarichilik uchun.",
-            "ru":"🐝 Бот только для пчеловодства.",
-            "en":"🐝 This bot is for beekeeping only."
+            "uz": "🐝 Bot faqat asalarichilik uchun.",
+            "ru": "🐝 Бот только для пчеловодства.",
+            "en": "🐝 This bot is for beekeeping only."
         }[lang]
 
     profile = user_profiles.get(uid, {})
-    style = profile.get("style","short")
+    style = profile.get("style", "short")
+
     search_query = " ".join(profile.get("last_questions", [])[-2:] + [q])
     ctx = "\n".join(search_docs(search_query))
+
     if not ctx:
         return {
-            "uz":"❌ Ma’lumot topilmadi.",
-            "ru":"❌ Информация не найдена.",
-            "en":"❌ No information found."
+            "uz": "❌ Ma’lumot topilmadi.",
+            "ru": "❌ Информация не найдена.",
+            "en": "❌ No information found."
         }[lang]
 
-    fav = sorted(profile.get("topics",{}).items(), key=lambda x:x[1], reverse=True)[:2]
-    memory_hint = f"User ko‘p qiziqadigan mavzular: {', '.join(x[0] for x in fav)}" if fav else ""
+    fav = sorted(
+        profile.get("topics", {}).items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:2]
 
-lang_instruction = {
-    "uz": "Javobni O‘ZBEK tilida ber.",
-    "ru": "Отвечай ТОЛЬКО на русском языке.",
-    "en": "Answer ONLY in English."
+    memory_hint = (
+        f"User ko‘p qiziqadigan mavzular: {', '.join(x[0] for x in fav)}"
+        if fav else ""
+    )
+
+    lang_instruction = {
+        "uz": "Javobni O‘ZBEK tilida ber.",
+        "ru": "Отвечай ТОЛЬКО на русском языке.",
+        "en": "Answer ONLY in English."
     }[lang]
+
     prompt = f"""
 You are an expert beekeeper.
+{lang_instruction}
 
 {memory_hint}
 
@@ -658,7 +672,12 @@ Kontekst:
 
 Savol: {q}
 """
-    r = client.responses.create(model="gpt-4.1-mini", input=prompt)
+
+    r = client.responses.create(
+        model="gpt-4.1-mini",
+        input=prompt
+    )
+
     return r.output_text.strip()
 
 # ================== UI ==================
