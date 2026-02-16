@@ -639,7 +639,11 @@ def ai_answer(uid, q):
 
     fav = sorted(profile.get("topics",{}).items(), key=lambda x:x[1], reverse=True)[:2]
     memory_hint = f"User ko‘p qiziqadigan mavzular: {', '.join(x[0] for x in fav)}" if fav else ""
-
+lang_instruction = {
+    "uz": "Javobni O‘ZBEK tilida ber.",
+    "ru": "Отвечай ТОЛЬКО на русском языке.",
+    "en": "Answer ONLY in English."
+}[lang]
     prompt = f"""
 You are an expert beekeeper.
 
