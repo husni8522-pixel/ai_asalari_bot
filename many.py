@@ -37,7 +37,24 @@ user_stats = set()
 questions_log = []
 admin_mode = {}
 
-ads = pickle.load(open(ADS_FILE, "rb")) if os.path.exists(ADS_FILE) else []
+DEFAULT_ADS = {
+    "uz": [],
+    "ru": [],
+    "en": []
+}
+
+if os.path.exists(ADS_FILE):
+    ads = pickle.load(open(ADS_FILE, "rb"))
+
+    # eski format (list) bo‘lsa — avtomatik moslashtiramiz
+    if isinstance(ads, list):
+        ads = {
+            "uz": ads,
+            "ru": ads,
+            "en": ads
+        }
+else:
+    ads = DEFAULT_ADS
 
 # ================== LANGUAGE ==================
 def detect_lang(text):
@@ -705,8 +722,10 @@ async def text(u:Update,c):
         return
 
     ans = ai_answer(uid, txt)
-    if ads and len(questions_log) >= 1:
-        ans += "\n\n📣 Tavsiya: " + ads[-1]
+lang_ads = ads.get(lang, [])
+
+if lang_ads:
+    ans += "\n\n📣 " + lang_ads[-1]
 
     # Foydalanuvchiga javob
     await u.message.reply_text(ans, reply_markup=reset_btn())
