@@ -74,7 +74,7 @@ def basic_chat(text):
         return {"uz":"Siz uchun hursandman. Arzimaydi 😊",
                 "ru":"Рад помочь! Не за что 😊",
                 "en":"I’m happy to help. You’re welcome 😊"}
-    if any(w in t for w in ["sani kim yaratgan","seni kim yaratgan","sani kim tuzgan","seni kim tuzgan",
+    if any(w in t for w in ["sani kim yaratgan","seni kim yaratgan","sani kim tuzgan","seni kim tuzgan","ким сан","сан ким","ким сен","сен ким",
                             "sen kim","sani kim","kim san","kim sen","kim tuzgan"]):
         return {"uz":"Men akajonim Husniddin Zaripov tomonidan yaratilgan botman. Akamni duolarizda eslab qo‘ying @zhn8522😊",
                 "ru":"Мен создан ботом Хусниддин Зарипов. Помните моего брата в ваших молитвах @zhn8522 😊",
