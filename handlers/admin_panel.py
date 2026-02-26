@@ -14,7 +14,7 @@ from indexer import build_index
 from globals import user_stats, questions_log
 
 
-ADMIN_CHOOSE, UPLOAD, DELETE, SEND_USER_ID, SEND_MESSAGE = range(5)
+ADMIN_CHOOSE, UPLOAD, DELETE, SEND_USER_ID, SEND_MESSAGE, ADD_AD = range(6)
 
 
 def admin_kb():
@@ -136,4 +136,5 @@ admin_conv = ConversationHandler(
         SEND_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_send_message)],
     },
     fallbacks=[],
+
 )
