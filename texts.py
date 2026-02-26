@@ -72,4 +72,10 @@ TEXTS = {
     "en": "Professional"
     },
 
+    "mode_active": {
+    "uz": "✨ Siz {mode} rejimidasiz.\n\nMarhamat, savollaringizni bering.",
+    "ru": "✨ Вы находитесь в режиме {mode}.\n\nЗадавайте ваши вопросы.",
+    "en": "✨ You are now in {mode} mode.\n\nFeel free to ask your questions."
+    }
 }
+
