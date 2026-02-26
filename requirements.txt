@@ -5,3 +5,4 @@ numpy
 pypdf
 python-docx
 langdetect
+python-dotenv
