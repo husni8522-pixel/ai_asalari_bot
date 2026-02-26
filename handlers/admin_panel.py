@@ -52,6 +52,10 @@ async def admin_cb(u: Update, c: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text("🗑 Fayl tanlang", reply_markup=InlineKeyboardMarkup(kb))
         return DELETE
 
+    if q.data == "ad":
+        await q.message.reply_text("📣 Reklama matnini kiriting:")
+        return ADD_AD
+    
     if q.data == "send_user":
         await q.message.reply_text("📨 User ID ni kiriting:")
         return SEND_USER_ID
@@ -138,3 +142,4 @@ admin_conv = ConversationHandler(
     fallbacks=[],
 
 )
+
