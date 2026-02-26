@@ -58,5 +58,18 @@ TEXTS = {
     "uz": "🐝 Bu platforma faqat asalarichilik savollari uchun.",
     "ru": "🐝 Платформа только для пчеловодства.",
     "en": "🐝 This platform is only for beekeeping."
-    }
+    },
+
+    "mode_beginner": {
+    "uz": "Boshlovchi",
+    "ru": "Начинающий",
+    "en": "Beginner"
+    },
+
+    "mode_professional": {
+    "uz": "Professional",
+    "ru": "Профессионал",
+    "en": "Professional"
+    },
+
 }
