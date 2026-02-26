@@ -1,8 +1,18 @@
 import time
 import random
+import pickle
+
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
-from globals import user_test_state, user_test_cooldown, user_languages, user_levels
+
+from globals import (
+    user_test_state,
+    user_test_cooldown,
+    user_languages,
+    user_levels,
+    LEVELS_FILE
+)
+
 from test_data import TEST_QUESTIONS
 from utils import t
 
@@ -15,7 +25,7 @@ def build_test_keyboard(options):
     ])
 
 
-# 🔥 Testni boshlash
+# 🔥 Professional testni boshlash
 async def start_professional_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     uid = update.effective_user.id
@@ -48,7 +58,7 @@ async def start_professional_test(update: Update, context: ContextTypes.DEFAULT_
     )
 
 
-# 🔥 Javobni qabul qilish (FAKAT BITTA!)
+# 🔥 Test javoblarini qabul qilish
 async def test_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
@@ -78,13 +88,24 @@ async def test_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         if state["correct"] >= 4:
             user_levels[uid] = "professional"
+            mode_name = t(uid, "mode_professional")
             await query.edit_message_text(t(uid, "test_success"))
         else:
             user_levels[uid] = "beginner"
+            mode_name = t(uid, "mode_beginner")
             await query.edit_message_text(t(uid, "test_fail"))
+
+        # 🔥 Levelni saqlaymiz (Railway volume)
+        pickle.dump(user_levels, open(LEVELS_FILE, "wb"))
 
         user_test_cooldown[uid] = time.time()
         del user_test_state[uid]
+
+        # 🔥 Rejim haqida xabar
+        await query.message.reply_text(
+            t(uid, "mode_active", mode=mode_name)
+        )
+
         return
 
     # 🔥 Keyingi savolni EDIT qilamiz
