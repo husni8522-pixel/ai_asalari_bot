@@ -1,8 +1,0 @@
-python-telegram-bot==20.7
-openai
-faiss-cpu
-numpy
-python-dotenv
-langdetect
-pypdf
-python-docx
