@@ -1,8 +1,25 @@
 import os
 import pickle
 
+# ================= BASE STORAGE (Railway Volume) =================
+
+if os.getenv("RAILWAY_ENVIRONMENT"):
+    BASE_DIR = "/app/data"
+else:
+    BASE_DIR = "data"
+
+os.makedirs(BASE_DIR, exist_ok=True)
+
+# ================= FILE PATHS =================
+
+STATS_FILE = os.path.join(BASE_DIR, "stats.pkl")
+ADS_FILE = os.path.join(BASE_DIR, "ads.pkl")
+LEVELS_FILE = os.path.join(BASE_DIR, "user_levels.pkl")
+INDEX_FILE = os.path.join(BASE_DIR, "index.faiss")
+META_FILE = os.path.join(BASE_DIR, "meta.pkl")
+IMAGE_INDEX_FILE = os.path.join(BASE_DIR, "image_index.pkl")
+
 # ================= STATISTIKA =================
-STATS_FILE = "stats.pkl"
 
 if os.path.exists(STATS_FILE):
     try:
@@ -16,21 +33,26 @@ else:
     user_stats = set()
     questions_log = []
 
-user_levels = {}
+# ================= USER LEVELS (PERSISTENT) =================
+
+if os.path.exists(LEVELS_FILE):
+    try:
+        user_levels = pickle.load(open(LEVELS_FILE, "rb"))
+    except:
+        user_levels = {}
+else:
+    user_levels = {}
+
+# ================= TEMPORARY STATES =================
+
 user_test_state = {}
 user_languages = {}
 user_test_cooldown = {}
-# ================= CHAT LOG =================
 chat_log = {}
-
-# ================= USER MEMORY (AI CONTEXT) =================
 user_memory = {}
-
-# ================= ADMIN =================
 admin_mode = {}
 
 # ================= REKLAMA =================
-ADS_FILE = "ads.pkl"
 
 if os.path.exists(ADS_FILE):
     try:
