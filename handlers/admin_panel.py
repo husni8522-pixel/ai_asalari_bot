@@ -14,9 +14,11 @@ from indexer import build_index
 from globals import user_stats, questions_log
 
 
-ADMIN_CHOOSE, UPLOAD, DELETE, SEND_USER_ID, SEND_MESSAGE, ADD_AD = range(6)
+# ================= STATES =================
+ADMIN_CHOOSE, UPLOAD, DELETE, ADD_AD, SEND_USER_ID, SEND_MESSAGE = range(6)
 
 
+# ================= KEYBOARD =================
 def admin_kb():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📥 Fayl yuklash", callback_data="upload")],
@@ -29,6 +31,7 @@ def admin_kb():
     ])
 
 
+# ================= START =================
 async def admin_start(u: Update, c: ContextTypes.DEFAULT_TYPE):
     if u.effective_user.id != ADMIN_ID:
         await u.message.reply_text("❌ Admin emas")
@@ -38,48 +41,66 @@ async def admin_start(u: Update, c: ContextTypes.DEFAULT_TYPE):
     return ADMIN_CHOOSE
 
 
+# ================= CALLBACK =================
 async def admin_cb(u: Update, c: ContextTypes.DEFAULT_TYPE):
     q = u.callback_query
     await q.answer()
 
-    if q.data == "upload":
+    data = q.data
+
+    if data == "upload":
         await q.message.reply_text("📥 Fayl yuboring")
         return UPLOAD
 
-    if q.data == "delete":
+    if data == "delete":
         files = os.listdir(DATA_DIR)
+        if not files:
+            await q.message.reply_text("❌ Fayllar yo‘q")
+            return ADMIN_CHOOSE
+
         kb = [[InlineKeyboardButton(f, callback_data=f"del::{f}")] for f in files]
         await q.message.reply_text("🗑 Fayl tanlang", reply_markup=InlineKeyboardMarkup(kb))
         return DELETE
 
-    if q.data == "ad":
+    if data == "ad":
         await q.message.reply_text("📣 Reklama matnini kiriting:")
         return ADD_AD
-    
-    if q.data == "send_user":
+
+    if data == "send_user":
         await q.message.reply_text("📨 User ID ni kiriting:")
         return SEND_USER_ID
 
-    if q.data == "stat":
+    if data == "stat":
         await q.message.reply_text(
             f"👥 Userlar: {len(user_stats)}\n❓ Savollar: {len(questions_log)}"
         )
         return ADMIN_CHOOSE
 
-    if q.data == "reindex":
+    if data == "reindex":
         await q.message.reply_text("♻️ Indeks yangilanmoqda...")
         build_index()
         await q.message.reply_text("✅ Indeks yangilandi!")
         return ADMIN_CHOOSE
 
-    if q.data == "exit":
+    if data == "exit":
         await q.message.reply_text("❌ Chiqildi")
         return ConversationHandler.END
 
     return ADMIN_CHOOSE
 
 
-# 📌 1-qadam: User ID olish
+# ================= REKLAMA =================
+async def admin_add_ad(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    text = u.message.text
+
+    # Bu yerga saqlash logikasi qo‘shishingiz mumkin
+    # masalan: ads.txt ga yozish
+
+    await u.message.reply_text("✅ Reklama saqlandi.")
+    return ADMIN_CHOOSE
+
+
+# ================= USER MESSAGE =================
 async def admin_get_user_id(u: Update, c: ContextTypes.DEFAULT_TYPE):
     try:
         user_id = int(u.message.text)
@@ -91,7 +112,6 @@ async def admin_get_user_id(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return SEND_USER_ID
 
 
-# 📌 2-qadam: Xabar yuborish
 async def admin_send_message(u: Update, c: ContextTypes.DEFAULT_TYPE):
     target_id = c.user_data.get("target_user_id")
 
@@ -111,10 +131,14 @@ async def admin_send_message(u: Update, c: ContextTypes.DEFAULT_TYPE):
     return ADMIN_CHOOSE
 
 
+# ================= FILE =================
 async def admin_file(u: Update, c: ContextTypes.DEFAULT_TYPE):
     d = u.message.document
     p = os.path.join(DATA_DIR, d.file_name)
-    await (await d.get_file()).download_to_drive(p)
+
+    file = await d.get_file()
+    await file.download_to_drive(p)
+
     build_index()
     await u.message.reply_text("✅ Yuklandi va indeks yangilandi")
     return ADMIN_CHOOSE
@@ -122,24 +146,54 @@ async def admin_file(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
 async def admin_del(u: Update, c: ContextTypes.DEFAULT_TYPE):
     q = u.callback_query
+    await q.answer()
+
     f = q.data.split("::")[1]
-    os.remove(os.path.join(DATA_DIR, f))
-    build_index()
-    await q.message.reply_text("✅ O‘chirildi")
+    path = os.path.join(DATA_DIR, f)
+
+    if os.path.exists(path):
+        os.remove(path)
+        build_index()
+        await q.message.reply_text("✅ O‘chirildi")
+    else:
+        await q.message.reply_text("❌ Fayl topilmadi")
+
     return ADMIN_CHOOSE
 
 
-# 🔥 ConversationHandler
+# ================= CANCEL =================
+async def cancel_admin(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await u.message.reply_text("❌ Bekor qilindi")
+    return ConversationHandler.END
+
+
+# ================= CONVERSATION =================
 admin_conv = ConversationHandler(
     entry_points=[CommandHandler("admin", admin_start)],
     states={
-        ADMIN_CHOOSE: [CallbackQueryHandler(admin_cb)],
-        UPLOAD: [MessageHandler(filters.Document.ALL, admin_file)],
-        DELETE: [CallbackQueryHandler(admin_del, pattern="^del::")],
-        SEND_USER_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_get_user_id)],
-        SEND_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_send_message)],
+        ADMIN_CHOOSE: [
+            CallbackQueryHandler(
+                admin_cb,
+                pattern="^(upload|delete|reindex|send_user|ad|stat|exit)$"
+            )
+        ],
+        UPLOAD: [
+            MessageHandler(filters.Document.ALL, admin_file)
+        ],
+        DELETE: [
+            CallbackQueryHandler(admin_del, pattern="^del::")
+        ],
+        ADD_AD: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, admin_add_ad)
+        ],
+        SEND_USER_ID: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, admin_get_user_id)
+        ],
+        SEND_MESSAGE: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, admin_send_message)
+        ],
     },
-    fallbacks=[],
-
+    fallbacks=[
+        CommandHandler("cancel", cancel_admin)
+    ],
 )
-
