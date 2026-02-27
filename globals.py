@@ -1,5 +1,6 @@
 import os
 import pickle
+current_ad = None
 
 # ================= BASE STORAGE (Railway Volume) =================
 
@@ -63,3 +64,4 @@ if os.path.exists(ADS_FILE):
         ads = []
 else:
     ads = []
+
