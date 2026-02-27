@@ -159,4 +159,6 @@ admin_conv = ConversationHandler(
         ADD_AD: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_add_ad)],
     },
     fallbacks=[],
+    per_message=True  # 🔥 SHU YERNI QO‘SHING
 )
+
