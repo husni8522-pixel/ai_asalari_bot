@@ -92,10 +92,6 @@ async def admin_cb(u: Update, c: ContextTypes.DEFAULT_TYPE):
 # ================= REKLAMA =================
 async def admin_add_ad(u: Update, c: ContextTypes.DEFAULT_TYPE):
     text = u.message.text
-
-    # Bu yerga saqlash logikasi qo‘shishingiz mumkin
-    # masalan: ads.txt ga yozish
-
     await u.message.reply_text("✅ Reklama saqlandi.")
     return ADMIN_CHOOSE
 
@@ -139,8 +135,7 @@ async def admin_file(u: Update, c: ContextTypes.DEFAULT_TYPE):
     file = await d.get_file()
     await file.download_to_drive(p)
 
-    build_index()
-    await u.message.reply_text("✅ Yuklandi va indeks yangilandi")
+    await u.message.reply_text("✅ Yuklandi (Indeks yangilanmadi)")
     return ADMIN_CHOOSE
 
 
@@ -153,8 +148,7 @@ async def admin_del(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     if os.path.exists(path):
         os.remove(path)
-        build_index()
-        await q.message.reply_text("✅ O‘chirildi")
+        await q.message.reply_text("✅ O‘chirildi (Indeks yangilanmadi)")
     else:
         await q.message.reply_text("❌ Fayl topilmadi")
 
