@@ -2,7 +2,7 @@ from config import client
 from utils import basic_chat, t
 from indexer import search_docs
 from globals import user_memory, user_levels
-
+from globals import current_ad
 
 def ai_answer(uid, q):
 
@@ -111,13 +111,20 @@ Do not invent information.
 
     # 5️⃣ AI CALL
     r = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"{ctx}\n\nQuestion: {q}"}
-        ],
-        temperature=temperature,
-        max_tokens=max_tokens
-    )
+    model="gpt-4.1-mini",
+    messages=[
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"{ctx}\n\nQuestion: {q}"}
+    ],
+    temperature=temperature,
+    max_tokens=max_tokens
+)
 
-    return r.choices[0].message.content.strip()
+answer = r.choices[0].message.content.strip()
+
+# 📣 Reklama qo‘shish
+from globals import current_ad
+if current_ad:
+    answer = f"{answer}\n\n━━━━━━━━━━\n📣 {current_ad}"
+
+return answer
