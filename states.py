@@ -1,0 +1,2 @@
+# states.py
+ADMIN_CHOOSE, UPLOAD, DELETE, ADD_AD, SEND_USER_ID = range(5)
