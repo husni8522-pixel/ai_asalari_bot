@@ -1,15 +1,6 @@
 import os
 import pickle
-current_ad = None
-AD_FILE = "ad.txt"
 
-current_ad = None
-
-# 🔄 Bot ishga tushganda reklama yuklanadi
-if os.path.exists(AD_FILE):
-    with open(AD_FILE, "r", encoding="utf-8") as f:
-        current_ad = f.read().strip()
-        
 # ================= BASE STORAGE (Railway Volume) =================
 
 if os.getenv("RAILWAY_ENVIRONMENT"):
@@ -22,11 +13,25 @@ os.makedirs(BASE_DIR, exist_ok=True)
 # ================= FILE PATHS =================
 
 STATS_FILE = os.path.join(BASE_DIR, "stats.pkl")
-ADS_FILE = os.path.join(BASE_DIR, "ads.pkl")
 LEVELS_FILE = os.path.join(BASE_DIR, "user_levels.pkl")
 INDEX_FILE = os.path.join(BASE_DIR, "index.faiss")
 META_FILE = os.path.join(BASE_DIR, "meta.pkl")
 IMAGE_INDEX_FILE = os.path.join(BASE_DIR, "image_index.pkl")
+
+# 🔥 REKLAMA FAYLI (persistent)
+AD_FILE = os.path.join(BASE_DIR, "ad.txt")
+
+# ================= REKLAMA =================
+
+current_ad = None
+
+# 🔄 Bot ishga tushganda reklama yuklanadi
+if os.path.exists(AD_FILE):
+    try:
+        with open(AD_FILE, "r", encoding="utf-8") as f:
+            current_ad = f.read().strip()
+    except:
+        current_ad = None
 
 # ================= STATISTIKA =================
 
@@ -60,17 +65,3 @@ user_test_cooldown = {}
 chat_log = {}
 user_memory = {}
 admin_mode = {}
-
-# ================= REKLAMA =================
-
-if os.path.exists(ADS_FILE):
-    try:
-        ads = pickle.load(open(ADS_FILE, "rb"))
-        if not isinstance(ads, list):
-            ads = []
-    except:
-        ads = []
-else:
-    ads = []
-
-
