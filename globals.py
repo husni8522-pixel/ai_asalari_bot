@@ -1,7 +1,15 @@
 import os
 import pickle
 current_ad = None
+AD_FILE = "ad.txt"
 
+current_ad = None
+
+# 🔄 Bot ishga tushganda reklama yuklanadi
+if os.path.exists(AD_FILE):
+    with open(AD_FILE, "r", encoding="utf-8") as f:
+        current_ad = f.read().strip()
+        
 # ================= BASE STORAGE (Railway Volume) =================
 
 if os.getenv("RAILWAY_ENVIRONMENT"):
@@ -64,4 +72,5 @@ if os.path.exists(ADS_FILE):
         ads = []
 else:
     ads = []
+
 
