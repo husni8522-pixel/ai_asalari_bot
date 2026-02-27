@@ -3,7 +3,8 @@ from telegram.ext import ContextTypes
 
 from ai_engine import ai_answer
 from globals import (
-    ads, ADS_FILE, chat_log,
+    current_ad,
+    chat_log,
     user_stats, questions_log, STATS_FILE,
     user_test_state, user_levels,
     user_languages, user_test_cooldown
@@ -16,23 +17,17 @@ import pickle
 import time
 from datetime import datetime
 
+
 async def send_long_message(message, text):
     MAX_LEN = 4000
     for i in range(0, len(text), MAX_LEN):
         await message.reply_text(text[i:i+MAX_LEN])
-        
+
+
 async def text_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     uid = u.effective_user.id
     txt = u.message.text
-
-    # 🔥 REKLAMA REJIMI
-    if c.user_data.get("ad_mode"):
-        ads.append(txt)
-        pickle.dump(ads, open(ADS_FILE, "wb"))
-        c.user_data.pop("ad_mode")
-        await u.message.reply_text("✅ Reklama saqlandi")
-        return
 
     # 🔥 PROFESSIONAL TEST LOGIKA
     if uid in user_test_state:
@@ -50,14 +45,12 @@ async def text_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
         state["step"] += 1
 
-        # Agar hali savollar tugamagan bo‘lsa
         if state["step"] < len(questions):
             await u.message.reply_text(
                 questions[state["step"]][lang]["question"]
             )
             return
 
-        # 🔥 TEST TUGADI
         if state["correct"] >= 4:
             user_levels[uid] = "professional"
             await u.message.reply_text(t(uid, "test_success"))
@@ -88,12 +81,11 @@ async def text_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
         with open(img, "rb") as photo:
             await u.message.reply_photo(photo=photo)
 
-    from utils import send_long_message
     await send_long_message(u.message, ans)
 
-    # 🔥 REKLAMA CHIQARISH
-    if isinstance(ads, list) and ads:
-        await u.message.reply_text(f"📣 Tavsiya qilamiz! {ads[-1]}")
+    # 🔥 REKLAMA (YANGI TIZIM)
+    if current_ad:
+        await u.message.reply_text(f"📣 Tavsiya qilamiz!\n\n{current_ad}")
 
     # 🔥 ADMIN LOG
     if ADMIN_ID:
@@ -104,7 +96,6 @@ async def text_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
             f"👤 USER ID: {uid}\n"
             f"🕒 {datetime.now()}\n"
             f"❓ Savol: {txt}\n"
-            f"✅ Javob: {ans}\n"
             f"💬 Chat: {chat_title} ({chat_type})"
         )
 
