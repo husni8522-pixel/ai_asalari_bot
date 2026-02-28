@@ -4,9 +4,11 @@ from globals import ads, ADS_FILE
 import random
 from ai_engine import ai_answer
 from globals import (
-    current_ad,
+    ads,
     chat_log,
-    user_stats, questions_log, STATS_FILE,
+    user_stats,
+    questions_log,
+    STATS_FILE,
     user_test_state, user_levels,
     user_languages, user_test_cooldown
 )
