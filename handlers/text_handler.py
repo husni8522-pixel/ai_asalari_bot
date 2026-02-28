@@ -1,6 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-
+from globals import ads, ADS_FILE
+import random
 from ai_engine import ai_answer
 from globals import (
     current_ad,
@@ -83,9 +84,10 @@ async def text_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
     await send_long_message(u.message, ans)
 
-    # 🔥 REKLAMA (YANGI TIZIM)
-    if current_ad:
-        await u.message.reply_text(f"📣 Tavsiya qilamiz!\n\n{current_ad}")
+    # 🔥 REKLAMA (ESKI ADS LIST TIZIMI)
+    if isinstance(ads, list) and ads:
+        ad_text = random.choice(ads)
+        await u.message.reply_text(f"📣 Tavsiya qilamiz!\n\n{ad_text}")
 
     # 🔥 ADMIN LOG
     if ADMIN_ID:
