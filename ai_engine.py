@@ -98,7 +98,8 @@ Rules:
 
     # 📣 Reklama qo‘shish (agar mavjud bo‘lsa)
     if current_ad:
-        answer = f"{answer}\n\n━━━━━━━━━━\n📣 {current_ad}"
+        answer = f"{answer}\n\n━━━━━━━━━━\n📣 "
 
     return answer
+
 
