@@ -1,18 +1,16 @@
 import os
 import pickle
 
-# ================= FILE PATHS (LOCAL ONLY) =================
+# ================= FILE PATHS =================
 
-BASE_DIR = "."
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
 
-STATS_FILE = os.path.join(BASE_DIR, "stats.pkl")
-LEVELS_FILE = os.path.join(BASE_DIR, "user_levels.pkl")
-INDEX_FILE = os.path.join(BASE_DIR, "index.faiss")
-META_FILE = os.path.join(BASE_DIR, "meta.pkl")
-IMAGE_INDEX_FILE = os.path.join(BASE_DIR, "image_index.pkl")
-ADS_FILE = os.path.join(BASE_DIR, "ads.pkl")
+STATS_FILE = os.path.join(DATA_DIR, "stats.pkl")
+ADS_FILE = os.path.join(DATA_DIR, "ads.pkl")
+LEVELS_FILE = os.path.join(DATA_DIR, "user_levels.pkl")
 
-# ================= REKLAMA =================
+# ================= ADS LIST (PERSISTENT) =================
 
 if os.path.exists(ADS_FILE):
     try:
@@ -48,11 +46,10 @@ if os.path.exists(LEVELS_FILE):
 else:
     user_levels = {}
 
-# ================= TEMP STATES =================
+# ================= TEMP =================
 
 user_test_state = {}
 user_languages = {}
 user_test_cooldown = {}
 chat_log = {}
 user_memory = {}
-admin_mode = {}
