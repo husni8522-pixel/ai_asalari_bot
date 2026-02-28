@@ -1,8 +1,6 @@
 from config import client
 from utils import basic_chat, t
 from indexer import search_docs
-from globals import user_memory, user_levels, current_ad
-
 
 def ai_answer(uid, q):
 
@@ -103,3 +101,4 @@ Rules:
         answer = f"{answer}\n\n━━━━━━━━━━\n📣 {current_ad}"
 
     return answer
+
