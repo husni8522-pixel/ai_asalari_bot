@@ -1,5 +1,7 @@
 import os
 import globals
+import pickle
+from globals import ads, ADS_FILE
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -84,17 +86,17 @@ async def admin_cb(u: Update, c: ContextTypes.DEFAULT_TYPE):
 
 
 # 🔥 REKLAMA SAQLASH (PERSISTENT)
+
 async def admin_add_ad(u: Update, c: ContextTypes.DEFAULT_TYPE):
+
     text = u.message.text.strip()
 
-    # RAM ga saqlash
-    globals.current_ad = text
+    ads.append(text)
 
-    # Faylga saqlash
-    with open(globals.AD_FILE, "w", encoding="utf-8") as f:
-        f.write(text)
+    with open(ADS_FILE, "wb") as f:
+        pickle.dump(ads, f)
 
-    await u.message.reply_text("✅ Reklama saqlandi va doimiy qilindi.")
+    await u.message.reply_text("✅ Reklama saqlandi.")
     return ADMIN_CHOOSE
 
 
@@ -160,5 +162,6 @@ admin_conv = ConversationHandler(
     },
     fallbacks=[]
 )
+
 
 
