@@ -1,6 +1,8 @@
 from config import client
 from utils import basic_chat, t
 from indexer import search_docs
+from globals import user_memory, user_levels
+
 
 def ai_answer(uid, q):
 
@@ -21,9 +23,10 @@ def ai_answer(uid, q):
     if not ctx_list:
         return t(uid, "only_beekeeping")
 
+    # Eng yaqin 2 ta kontekst
     ctx = "\n\n".join(ctx_list[:2])
 
-    # 🔥 Contextni cheklaymiz
+    # Context uzunligini cheklash
     if len(ctx) > 1500:
         ctx = ctx[:1500]
 
@@ -39,6 +42,7 @@ def ai_answer(uid, q):
 
         system_prompt = """
 You are a friendly beekeeping teacher.
+
 Rules:
 - Always answer in the same language as the user.
 - Explain in very simple words.
@@ -52,14 +56,16 @@ Rules:
     # 🧠 PROFESSIONAL
     # =========================
     elif level == "professional":
-        max_tokens = 900
+        max_tokens = 800
         temperature = 0.3
 
         system_prompt = """
 You are a professional beekeeping expert.
+
 Rules:
 - Always answer in the same language as the user.
 - Be structured and precise.
+- Use professional terminology when needed.
 - Do not invent information.
 """
 
@@ -67,21 +73,24 @@ Rules:
     # 🔬 ULTRA
     # =========================
     elif level == "ultra":
-        max_tokens = 1100
+        max_tokens = 1000
         temperature = 0.2
 
         system_prompt = """
-You are a professional beekeeping expert.
+You are an ultra expert academic beekeeping specialist.
+
 Rules:
 - Always answer in the same language as the user.
-- Be structured and precise.
+- Provide deep scientific explanation.
+- Use biological and technical terminology.
+- Be highly structured.
 - Do not invent information.
 """
 
     else:
         max_tokens = 600
         temperature = 0.3
-        system_prompt = "Answer clearly."
+        system_prompt = "Answer clearly and accurately."
 
     # 5️⃣ AI CALL
     r = client.chat.completions.create(
@@ -94,12 +103,4 @@ Rules:
         max_tokens=max_tokens
     )
 
-    answer = r.choices[0].message.content.strip()
-
-    # 📣 Reklama qo‘shish (agar mavjud bo‘lsa)
-    if current_ad:
-        answer = f"{answer}\n\n━━━━━━━━━━\n📣 "
-
-    return answer
-
-
+    return r.choices[0].message.content.strip()
