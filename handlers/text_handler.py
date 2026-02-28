@@ -113,10 +113,10 @@ async def text_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
     # ====================================================
     # 📣 REKLAMA (ESKI ADS LIST TIZIMI)
     # ====================================================
-    if isinstance(ads, list) and len(ads) > 0:
+    # 🔥 REKLAMA (ads.pkl list tizimi)
+    if isinstance(ads, list) and ads:
         ad_text = random.choice(ads)
         await u.message.reply_text(f"📣 Tavsiya qilamiz!\n\n{ad_text}")
-
     # ====================================================
     # 🛠 ADMIN LOG
     # ====================================================
