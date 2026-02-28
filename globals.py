@@ -1,37 +1,28 @@
 import os
 import pickle
 
-# ================= BASE STORAGE (Railway Volume) =================
+# ================= FILE PATHS (LOCAL ONLY) =================
 
-if os.getenv("RAILWAY_ENVIRONMENT"):
-    BASE_DIR = "/app/data"
-else:
-    BASE_DIR = "data"
-
-os.makedirs(BASE_DIR, exist_ok=True)
-
-# ================= FILE PATHS =================
+BASE_DIR = "."
 
 STATS_FILE = os.path.join(BASE_DIR, "stats.pkl")
 LEVELS_FILE = os.path.join(BASE_DIR, "user_levels.pkl")
 INDEX_FILE = os.path.join(BASE_DIR, "index.faiss")
 META_FILE = os.path.join(BASE_DIR, "meta.pkl")
 IMAGE_INDEX_FILE = os.path.join(BASE_DIR, "image_index.pkl")
-
-# 🔥 REKLAMA FAYLI (persistent)
-AD_FILE = os.path.join(BASE_DIR, "ad.txt")
+ADS_FILE = os.path.join(BASE_DIR, "ads.pkl")
 
 # ================= REKLAMA =================
 
-current_ad = None
-
-# 🔄 Bot ishga tushganda reklama yuklanadi
-if os.path.exists(AD_FILE):
+if os.path.exists(ADS_FILE):
     try:
-        with open(AD_FILE, "r", encoding="utf-8") as f:
-            current_ad = f.read().strip()
+        ads = pickle.load(open(ADS_FILE, "rb"))
+        if not isinstance(ads, list):
+            ads = []
     except:
-        current_ad = None
+        ads = []
+else:
+    ads = []
 
 # ================= STATISTIKA =================
 
@@ -47,7 +38,7 @@ else:
     user_stats = set()
     questions_log = []
 
-# ================= USER LEVELS (PERSISTENT) =================
+# ================= USER LEVELS =================
 
 if os.path.exists(LEVELS_FILE):
     try:
@@ -57,7 +48,7 @@ if os.path.exists(LEVELS_FILE):
 else:
     user_levels = {}
 
-# ================= TEMPORARY STATES =================
+# ================= TEMP STATES =================
 
 user_test_state = {}
 user_languages = {}
