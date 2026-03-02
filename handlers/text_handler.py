@@ -74,43 +74,75 @@ async def text_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return
 
     # ====================================================
-# 💬 AI JAVOB YUBORISH
-# ====================================================
-await send_long_message(u.message, ans)
+    # 🤖 AI JAVOB
+    # ====================================================
+    ans = ai_answer(uid, txt)
 
-# ====================================================
-# 📣 REKLAMA (ads.pkl list tizimi)
-# ====================================================
-if isinstance(ads, list) and ads:
-    ad_text = random.choice(ads)
-    await u.message.reply_text(f"📣 Tavsiya qilamiz!\n\n{ad_text}")
-
-# ====================================================
-# 🛠 ADMIN LOG
-# ====================================================
-if ADMIN_ID:
+    # ====================================================
+    # 📊 STATISTIKA
+    # ====================================================
     try:
-        chat_title = chat_log.get(
-            u.effective_chat.id, {}
-        ).get("title", "Private chat")
+        user_stats.add(uid)
+        questions_log.append(txt)
 
-        chat_type = chat_log.get(
-            u.effective_chat.id, {}
-        ).get("type", u.effective_chat.type)
+        with open(STATS_FILE, "wb") as f:
+            pickle.dump({
+                "users": user_stats,
+                "questions": questions_log
+            }, f)
+    except:
+        pass
 
-        short_answer = ans
-        if len(short_answer) > 1500:
-            short_answer = short_answer[:1500] + "\n\n... (qisqartirildi)"
+    # ====================================================
+    # 🖼 RASM QIDIRISH
+    # ====================================================
+    images = find_images_for_question(txt)
 
-        msg = (
-            f"👤 USER ID: {uid}\n"
-            f"🕒 {datetime.now()}\n"
-            f"💬 Chat: {chat_title} ({chat_type})\n\n"
-            f"❓ SAVOL:\n{txt}\n\n"
-            f"🤖 JAVOB:\n{short_answer}"
-        )
+    for img in images:
+        try:
+            with open(img, "rb") as photo:
+                await u.message.reply_photo(photo=photo)
+        except:
+            pass
 
-        await c.bot.send_message(chat_id=ADMIN_ID, text=msg)
+    # ====================================================
+    # 💬 AI JAVOB YUBORISH
+    # ====================================================
+    await send_long_message(u.message, ans)
 
-    except Exception as e:
-        print("Admin log error:", e)
+    # ====================================================
+    # 📣 REKLAMA (ads.pkl list tizimi)
+    # ====================================================
+    if isinstance(ads, list) and ads:
+        ad_text = random.choice(ads)
+        await u.message.reply_text(f"📣 Tavsiya qilamiz!\n\n{ad_text}")
+
+    # ====================================================
+    # 🛠 ADMIN LOG (Savol + Javob)
+    # ====================================================
+    if ADMIN_ID:
+        try:
+            chat_title = chat_log.get(
+                u.effective_chat.id, {}
+            ).get("title", "Private chat")
+
+            chat_type = chat_log.get(
+                u.effective_chat.id, {}
+            ).get("type", u.effective_chat.type)
+
+            short_answer = ans
+            if len(short_answer) > 1500:
+                short_answer = short_answer[:1500] + "\n\n... (qisqartirildi)"
+
+            msg = (
+                f"👤 USER ID: {uid}\n"
+                f"🕒 {datetime.now()}\n"
+                f"💬 Chat: {chat_title} ({chat_type})\n\n"
+                f"❓ SAVOL:\n{txt}\n\n"
+                f"🤖 JAVOB:\n{short_answer}"
+            )
+
+            await c.bot.send_message(chat_id=ADMIN_ID, text=msg)
+
+        except Exception as e:
+            print("Admin log error:", e)
