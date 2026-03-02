@@ -63,7 +63,7 @@ Rules:
     # =========================
     # 🧠 PROFESSIONAL
     # =========================
-    elif level == "professional":
+    if elif level == "professional":
 
         max_tokens = 1200
         temperature = 0.3
@@ -126,7 +126,7 @@ Structure:
     # =========================
     # 🔬 ULTRA
     # =========================
-    elif level == "ultra":
+    if elif level == "ultra":
         max_tokens = 1500
         temperature = 0.2
 
@@ -158,6 +158,7 @@ Rules:
     )
 
     return r.choices[0].message.content.strip()
+
 
 
 
