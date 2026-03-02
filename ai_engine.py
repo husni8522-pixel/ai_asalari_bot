@@ -2,7 +2,7 @@ from config import client
 from utils import basic_chat, t
 from indexer import search_docs
 from globals import user_memory, user_levels
-
+from globals import user_languages
 
 # 🔍 Kasallik savolini aniqlash
 def is_disease_question(q):
@@ -16,7 +16,8 @@ def is_disease_question(q):
 
 
 def ai_answer(uid, q):
-
+    lang = user_languages.get(uid, "uz")
+    
     # 1️⃣ Basic chat
     basic = basic_chat(uid, q)
     if basic:
@@ -150,3 +151,4 @@ Rules:
     )
 
     return r.choices[0].message.content.strip()
+
