@@ -3,7 +3,15 @@ from utils import basic_chat, t
 from indexer import search_docs
 from globals import user_memory, user_levels
 
-
+def is_disease_question(q):
+    keywords = [
+        "kana", "kanasi", "varroa", "kasallik",
+        "disease", "mite", "treatment",
+        "davolash", "dorilar", "zararkunanda"
+    ]
+    q_lower = q.lower()
+    return any(k in q_lower for k in keywords)
+    
 def ai_answer(uid, q):
 
     # 1️⃣ Basic chat
@@ -24,11 +32,11 @@ def ai_answer(uid, q):
         return t(uid, "only_beekeeping")
 
     # Eng yaqin 2 ta kontekst
-    ctx = "\n\n".join(ctx_list[:2])
+    ctx = "\n\n".join(ctx_list[:5])
 
     # Context uzunligini cheklash
-    if len(ctx) > 1500:
-        ctx = ctx[:1500]
+    if len(ctx) > 4000:
+        ctx = ctx[:4000]
 
     # 4️⃣ USER LEVEL
     level = user_levels.get(uid, "beginner")
@@ -37,7 +45,7 @@ def ai_answer(uid, q):
     # 🌱 BEGINNER
     # =========================
     if level == "beginner":
-        max_tokens = 400
+        max_tokens = 800
         temperature = 0.4
 
         system_prompt = """
@@ -56,24 +64,69 @@ Rules:
     # 🧠 PROFESSIONAL
     # =========================
     elif level == "professional":
-        max_tokens = 800
-        temperature = 0.3
+    max_tokens = 1200
+    temperature = 0.3
+
+    if is_disease_question(q):
+
+        system_prompt = """
+You are a senior veterinary beekeeping expert.
+
+Rules:
+- Always answer in the same language as the user.
+- Be highly professional.
+- Use structured sections.
+- Include practical treatment details.
+- Mention real medications and active substances.
+- Be concise but complete.
+
+Structure your answer EXACTLY like this:
+
+🦠 Kasallik yoki zararkunanda nomi
+
+📌 Turlari:
+- (list types)
+
+🔍 Belgilari:
+- (symptoms)
+
+⚠ Sabablari:
+- (causes)
+
+💊 Davolash:
+- (treatment methods)
+- (chemical treatments with active substances)
+- (organic options if available)
+
+🛡 Oldini olish:
+- (prevention steps)
+
+📌 Amaliy tavsiya:
+- (short practical advice)
+"""
+    else:
 
         system_prompt = """
 You are a professional beekeeping expert.
 
 Rules:
 - Always answer in the same language as the user.
-- Be structured and precise.
-- Use professional terminology when needed.
-- Do not invent information.
+- Provide structured, professional explanation.
+- Include biological and technical details.
+- Add practical recommendations.
+
+Structure:
+
+📘 Tushuntirish
+🔬 Ilmiy izoh
+⚙ Amaliy tavsiyalar
 """
 
     # =========================
     # 🔬 ULTRA
     # =========================
     elif level == "ultra":
-        max_tokens = 1000
+        max_tokens = 2000
         temperature = 0.2
 
         system_prompt = """
@@ -104,3 +157,4 @@ Rules:
     )
 
     return r.choices[0].message.content.strip()
+
