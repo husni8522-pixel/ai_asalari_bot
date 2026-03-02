@@ -74,53 +74,20 @@ async def text_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
         return
 
     # ====================================================
-    # 🤖 AI JAVOB
-    # ====================================================
-    ans = ai_answer(uid, txt)
+# 💬 AI JAVOB YUBORISH
+# ====================================================
+await send_long_message(u.message, ans)
 
-    # ====================================================
-    # 📊 STATISTIKA
-    # ====================================================
-    try:
-        user_stats.add(uid)
-        questions_log.append(txt)
+# ====================================================
+# 📣 REKLAMA (ads.pkl list tizimi)
+# ====================================================
+if isinstance(ads, list) and ads:
+    ad_text = random.choice(ads)
+    await u.message.reply_text(f"📣 Tavsiya qilamiz!\n\n{ad_text}")
 
-        with open(STATS_FILE, "wb") as f:
-            pickle.dump({
-                "users": user_stats,
-                "questions": questions_log
-            }, f)
-    except:
-        pass
-
-    # ====================================================
-    # 🖼 RASM QIDIRISH
-    # ====================================================
-    images = find_images_for_question(txt)
-
-    for img in images:
-        try:
-            with open(img, "rb") as photo:
-                await u.message.reply_photo(photo=photo)
-        except:
-            pass
-
-    # ====================================================
-    # 💬 AI JAVOB YUBORISH
-    # ====================================================
-    await send_long_message(u.message, ans)
-
-    # ====================================================
-    # 📣 REKLAMA (ESKI ADS LIST TIZIMI)
-    # ====================================================
-    # 🔥 REKLAMA (ads.pkl list tizimi)
-    if isinstance(ads, list) and ads:
-        ad_text = random.choice(ads)
-        await u.message.reply_text(f"📣 Tavsiya qilamiz!\n\n{ad_text}")
-    # ====================================================
-    # 🛠 ADMIN LOG
-    # ====================================================
-    # 🔥 ADMIN LOG
+# ====================================================
+# 🛠 ADMIN LOG
+# ====================================================
 if ADMIN_ID:
     try:
         chat_title = chat_log.get(
