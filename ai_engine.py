@@ -3,6 +3,8 @@ from utils import basic_chat, t
 from indexer import search_docs
 from globals import user_memory, user_levels
 
+
+# 🔍 Kasallik savolini aniqlash
 def is_disease_question(q):
     keywords = [
         "kana", "kanasi", "varroa", "kasallik",
@@ -11,7 +13,8 @@ def is_disease_question(q):
     ]
     q_lower = q.lower()
     return any(k in q_lower for k in keywords)
-    
+
+
 def ai_answer(uid, q):
 
     # 1️⃣ Basic chat
@@ -31,10 +34,8 @@ def ai_answer(uid, q):
     if not ctx_list:
         return t(uid, "only_beekeeping")
 
-    # Eng yaqin 2 ta kontekst
     ctx = "\n\n".join(ctx_list[:5])
 
-    # Context uzunligini cheklash
     if len(ctx) > 4000:
         ctx = ctx[:4000]
 
@@ -45,74 +46,59 @@ def ai_answer(uid, q):
     # 🌱 BEGINNER
     # =========================
     if level == "beginner":
+
         max_tokens = 800
         temperature = 0.4
 
         system_prompt = """
 You are a friendly beekeeping teacher.
-
-Rules:
 - Always answer in the same language as the user.
-- Explain in very simple words.
+- Explain in simple words.
 - Avoid scientific terminology.
 - Keep answer short and clear.
-- Use examples if helpful.
 - Do not invent information.
 """
 
     # =========================
     # 🧠 PROFESSIONAL
     # =========================
-    if elif level == "professional":
+    elif level == "professional":
 
         max_tokens = 1200
         temperature = 0.3
 
-    if is_disease_question(q):
+        # 🔥 Kasallik bo‘lsa alohida professional format
+        if is_disease_question(q):
 
-        system_prompt = """
+            system_prompt = """
 You are a senior veterinary beekeeping expert.
 
 Rules:
 - Always answer in the same language as the user.
 - Be highly professional.
-- Use structured sections.
-- Include practical treatment details.
 - Mention real medications and active substances.
 - Be concise but complete.
 
-Structure your answer EXACTLY like this:
+Structure:
 
 🦠 Kasallik yoki zararkunanda nomi
 
 📌 Turlari:
-- (list types)
-
 🔍 Belgilari:
-- (symptoms)
-
 ⚠ Sabablari:
-- (causes)
-
 💊 Davolash:
-- (treatment methods)
-- (chemical treatments with active substances)
-- (organic options if available)
-
 🛡 Oldini olish:
-- (prevention steps)
-
 📌 Amaliy tavsiya:
-- (short practical advice)
 """
-    else:
 
-        system_prompt = """
+        else:
+
+            system_prompt = """
 You are a professional beekeeping expert.
 
 Rules:
 - Always answer in the same language as the user.
-- Provide structured, professional explanation.
+- Provide structured professional explanation.
 - Include biological and technical details.
 - Add practical recommendations.
 
@@ -126,7 +112,8 @@ Structure:
     # =========================
     # 🔬 ULTRA
     # =========================
-    if elif level == "ultra":
+    elif level == "ultra":
+
         max_tokens = 1500
         temperature = 0.2
 
@@ -136,12 +123,17 @@ You are an ultra expert academic beekeeping specialist.
 Rules:
 - Always answer in the same language as the user.
 - Provide deep scientific explanation.
-- Use biological and technical terminology.
+- Include pathogen biology, lifecycle and treatment protocols.
+- Mention active substances and resistance risks.
 - Be highly structured.
 - Do not invent information.
 """
 
+    # =========================
+    # 🔄 DEFAULT
+    # =========================
     else:
+
         max_tokens = 600
         temperature = 0.3
         system_prompt = "Answer clearly and accurately."
@@ -158,7 +150,3 @@ Rules:
     )
 
     return r.choices[0].message.content.strip()
-
-
-
-
