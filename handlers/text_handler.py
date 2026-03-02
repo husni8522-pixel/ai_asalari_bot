@@ -120,23 +120,25 @@ async def text_handler(u: Update, c: ContextTypes.DEFAULT_TYPE):
     # ====================================================
     # 🛠 ADMIN LOG
     # ====================================================
-    if ADMIN_ID:
-        chat_title = chat_log.get(
-            u.effective_chat.id, {}
-        ).get("title", "Private chat")
+    # 🔥 ADMIN LOG (Savol + Javob)
+if ADMIN_ID:
 
-        chat_type = chat_log.get(
-            u.effective_chat.id, {}
-        ).get("type", u.effective_chat.type)
+    chat_title = chat_log.get(u.effective_chat.id, {}).get("title", "Private chat")
+    chat_type = chat_log.get(u.effective_chat.id, {}).get("type", u.effective_chat.type)
 
-        msg = (
-            f"👤 USER ID: {uid}\n"
-            f"🕒 {datetime.now()}\n"
-            f"❓ Savol: {txt}\n"
-            f"💬 Chat: {chat_title} ({chat_type})"
-        )
+    # Javobni juda uzun bo‘lsa qisqartiramiz
+    short_answer = ans
+    if len(short_answer) > 1500:
+        short_answer = short_answer[:1500] + "\n\n... (javob qisqartirildi)"
 
-        try:
-            await c.bot.send_message(chat_id=ADMIN_ID, text=msg)
+    msg = (
+        f"👤 USER ID: {uid}\n"
+        f"🕒 {datetime.now()}\n"
+        f"💬 Chat: {chat_title} ({chat_type})\n\n"
+        f"❓ SAVOL:\n{txt}\n\n"
+        f"🤖 JAVOB:\n{short_answer}"
+    )
+
+    await c.bot.send_message(chat_id=ADMIN_ID, text=msg)
         except:
             pass
