@@ -64,8 +64,9 @@ Rules:
     # 🧠 PROFESSIONAL
     # =========================
     elif level == "professional":
-    max_tokens = 1200
-    temperature = 0.3
+
+        max_tokens = 1200
+        temperature = 0.3
 
     if is_disease_question(q):
 
@@ -157,4 +158,5 @@ Rules:
     )
 
     return r.choices[0].message.content.strip()
+
 
