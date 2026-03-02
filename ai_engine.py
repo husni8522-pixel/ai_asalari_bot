@@ -127,7 +127,7 @@ Structure:
     # 🔬 ULTRA
     # =========================
     elif level == "ultra":
-        max_tokens = 2000
+        max_tokens = 1500
         temperature = 0.2
 
         system_prompt = """
@@ -158,5 +158,6 @@ Rules:
     )
 
     return r.choices[0].message.content.strip()
+
 
 
