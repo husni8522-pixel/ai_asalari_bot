@@ -28,6 +28,17 @@ def ai_answer(uid, q):
 
     target_lang = lang_map.get(lang, "Uzbek")
     
+    answer = r.choices[0].message.content.strip()
+
+    if target_lang != "Uzbek":
+        answer = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {"role": "system", "content": f"Translate this text strictly into {target_lang}. Do not change meaning."},
+                {"role": "user", "content": answer}
+            ],
+            temperature=0
+        ).choices[0].message.content.strip()
     # 1️⃣ Basic chat
     basic = basic_chat(uid, q)
     if basic:
@@ -205,6 +216,7 @@ Final answer MUST be in {target_lang}.
 )
 
     return r.choices[0].message.content.strip()
+
 
 
 
