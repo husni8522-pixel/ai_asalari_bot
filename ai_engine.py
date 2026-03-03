@@ -20,7 +20,6 @@ def ai_answer(uid, q):
 
     lang = user_languages.get(uid, "uz")
 
-    # 🔥 SHU YERGA QO‘SHING
     lang_map = {
         "uz": "Uzbek",
         "ru": "Russian",
@@ -70,15 +69,19 @@ def ai_answer(uid, q):
         max_tokens = 800
         temperature = 0.4
 
-        system_prompt = """
+        system_prompt = f"""
 You are a friendly beekeeping teacher.
-- Always answer in the same language as the user.
-- Explain in simple words.
-- Avoid scientific terminology.
-- Keep answer short and clear.
-- Do not invent information.
-"""
 
+Language Rule:
+- You MUST answer ONLY in {target_lang}.
+- Even if the user writes in another language, you MUST answer in {target_lang}.
+- Do NOT switch language under any circumstance.
+
+Rules:
+- Provide structured professional explanation.
+- Include biological and technical details.
+- Add practical recommendations.
+"""
     # =========================
     # 🧠 PROFESSIONAL
     # =========================
@@ -90,7 +93,7 @@ You are a friendly beekeeping teacher.
         # 🔥 Kasallik bo‘lsa alohida professional format
         if is_disease_question(q):
 
-            system_prompt = """
+            system_prompt = f"""
 You are a senior veterinary beekeeping expert.
 
 Rules:
@@ -116,14 +119,15 @@ Structure:
             system_prompt = f"""
 You are a professional beekeeping expert.
 
-CRITICAL LANGUAGE RULE:
-- The final answer MUST be written ONLY in {target_lang}.
-- If the knowledge base is in another language, translate internally.
-- Never respond in any other language.
+Language Rule:
+- You MUST answer ONLY in {target_lang}.
+- Even if the user writes in another language, you MUST answer in {target_lang}.
+- Do NOT switch language under any circumstance.
 
-If you break this rule, the answer is invalid.
-
-Follow structured professional format.
+Rules:
+- Provide structured professional explanation.
+- Include biological and technical details.
+- Add practical recommendations.
 """
 
     # =========================
@@ -134,10 +138,18 @@ Follow structured professional format.
         max_tokens = 1500
         temperature = 0.2
 
-        system_prompt = """
+        system_prompt = f"""
 You are an ultra expert academic beekeeping specialist.
 
+Language Rule:
+- You MUST answer ONLY in {target_lang}.
+- Even if the user writes in another language, you MUST answer in {target_lang}.
+- Do NOT switch language under any circumstance.
+
 Rules:
+- Provide structured professional explanation.
+- Include biological and technical details.
+- Add practical recommendations.
 - Always answer in the same language as the user.
 - Provide deep scientific explanation.
 - Include pathogen biology, lifecycle and treatment protocols.
@@ -170,6 +182,7 @@ Rules:
 )
 
     return r.choices[0].message.content.strip()
+
 
 
 
