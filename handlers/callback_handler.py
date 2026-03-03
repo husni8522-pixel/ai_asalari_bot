@@ -1,34 +1,26 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from globals import user_languages
+from globals import user_languages, user_levels
 from handlers.level_handler import start_professional_test
-from globals import user_levels
 from utils import t
-
-def reset_btn():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄", callback_data="reset")]
-    ])
 
 
 # 🔥 RESET
 async def reset_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    await update.callback_query.message.reply_text(
-        "✅",
-        reply_markup=reset_btn()
-    )
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("✅")
 
 
 # 🔥 TIL TANLASH
 async def lang_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
+    query = update.callback_query
+    await query.answer()
 
-    lang = q.data.split("_")[1]
-    user_languages[q.from_user.id] = lang
+    lang = query.data.split("_")[1]
+    uid = query.from_user.id
 
-    uid = q.from_user.id
+    user_languages[uid] = lang
 
     texts = {
         "uz": "🐝 Assalomu alaykum!\n\nDarajangizni tanlang:",
@@ -41,7 +33,7 @@ async def lang_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(t(uid, "level_professional"), callback_data="level_pro")]
     ])
 
-    await q.message.reply_text(
+    await query.edit_message_text(
         texts.get(lang, texts["uz"]),
         reply_markup=level_kb
     )
@@ -49,16 +41,19 @@ async def lang_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # 🔥 LEVEL CALLBACK
 async def level_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
+    query = update.callback_query
+    await query.answer()
 
-    if q.data == "level_pro":
+    uid = query.from_user.id
+
+    if query.data == "level_pro":
         await start_professional_test(update, context)
+        return
 
-    if q.data == "level_beginner":
-        uid = q.from_user.id
+    if query.data == "level_beginner":
         user_levels[uid] = "beginner"
 
-        await q.message.reply_text(
+        await query.edit_message_text(
             t(uid, "level_activated_beginner")
         )
+        return
