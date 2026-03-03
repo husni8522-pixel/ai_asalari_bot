@@ -79,52 +79,41 @@ def index_invalid():
     )
 
 
-def search_docs(q, top_k=5):
+def search_docs(q, threshold=0.65):
 
     if index_invalid():
         build_index()
         if index_invalid():
             return []
 
-    from utils import normalize_text
-    q_norm = normalize_text(q)
+    index = faiss.read_index(INDEX_FILE)
+    texts = pickle.load(open(META_FILE, "rb"))
 
-    try:
-        index = faiss.read_index(INDEX_FILE)
-        texts = pickle.load(open(META_FILE, "rb"))
+    emb = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=[q]
+    ).data[0].embedding
 
-        emb = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=[q_norm]
-        ).data[0].embedding
+    emb = np.array([emb]).astype("float32")
 
-        emb = np.array([emb]).astype("float32")
+    D, I = index.search(emb, TOP_K)
 
-        D, I = index.search(emb, top_k)
+    results = []
 
-        results = []
-        keywords = q_norm.split()
+    for dist, idx in zip(D[0], I[0]):
 
-        for dist, idx in zip(D[0], I[0]):
+        if idx == -1:
+            continue
 
-            if idx == -1:
-                continue
+        # L2 distance → similarity
+        similarity = 1 / (1 + dist)
 
-            text = texts[idx]
-            similarity = 1 / (1 + dist)
+        if similarity >= threshold:
+            results.append(texts[idx])
 
-            keyword_score = sum(
-                1 for k in keywords if k in text.lower()
-            )
-
-            final_score = (similarity * 0.7) + (keyword_score * 0.3)
-
-            results.append((final_score, text))
-
-        results.sort(reverse=True)
-
-        return [r[1] for r in results[:3]]
+    return results
 
     except Exception as e:
         print("❌ SEARCH ERROR:", e)
+
         return []
