@@ -17,7 +17,17 @@ def is_disease_question(q):
 
 
 def ai_answer(uid, q):
+
     lang = user_languages.get(uid, "uz")
+
+    # 🔥 SHU YERGA QO‘SHING
+    lang_map = {
+        "uz": "Uzbek",
+        "ru": "Russian",
+        "en": "English"
+    }
+
+    target_lang = lang_map.get(lang, "Uzbek")
     
     # 1️⃣ Basic chat
     basic = basic_chat(uid, q)
@@ -141,7 +151,7 @@ Rules:
     # =========================
     else:
 
-        max_tokens = 600
+        max_tokens = 800
         temperature = 0.3
         system_prompt = "Answer clearly and accurately."
 
@@ -150,14 +160,17 @@ Rules:
         model="gpt-4.1-mini",
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "system", "content": f"Knowledge Base:\n{ctx}"},
-            {"role": "user", "content": f"Answer in {target_lang}:\n\n{q}"}
-        ],
+            {
+                "role": "user",
+                "content": f"Answer strictly in {target_lang} language.\n\n{ctx}\n\nQuestion:\n{q}"
+            }
+    ],
     temperature=temperature,
     max_tokens=max_tokens
 )
 
     return r.choices[0].message.content.strip()
+
 
 
 
