@@ -79,7 +79,7 @@ def index_invalid():
     )
 
 
-def search_docs(q, threshold=0.65):
+def search_docs(q, threshold=0.45):
 
     try:
 
@@ -118,4 +118,5 @@ def search_docs(q, threshold=0.65):
     except Exception as e:
         print("Search error:", e)
         return []
+
 
