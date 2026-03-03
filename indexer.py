@@ -81,39 +81,41 @@ def index_invalid():
 
 def search_docs(q, threshold=0.65):
 
-    if index_invalid():
-        build_index()
+    try:
+
         if index_invalid():
-            return []
+            build_index()
+            if index_invalid():
+                return []
 
-    index = faiss.read_index(INDEX_FILE)
-    texts = pickle.load(open(META_FILE, "rb"))
+        index = faiss.read_index(INDEX_FILE)
+        texts = pickle.load(open(META_FILE, "rb"))
 
-    emb = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=[q]
-    ).data[0].embedding
+        emb = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=[q]
+        ).data[0].embedding
 
-    emb = np.array([emb]).astype("float32")
+        emb = np.array([emb]).astype("float32")
 
-    D, I = index.search(emb, TOP_K)
+        D, I = index.search(emb, TOP_K)
 
-    results = []
+        results = []
 
-    for dist, idx in zip(D[0], I[0]):
+        for dist, idx in zip(D[0], I[0]):
 
-        if idx == -1:
-            continue
+            if idx == -1:
+                continue
 
-        # L2 distance → similarity
-        similarity = 1 / (1 + dist)
+            # L2 → similarity
+            similarity = 1 / (1 + dist)
 
-        if similarity >= threshold:
-            results.append(texts[idx])
+            if similarity >= threshold:
+                results.append(texts[idx])
 
-    return results
+        return results
 
     except Exception as e:
-        print("❌ SEARCH ERROR:", e)
-
+        print("Search error:", e)
         return []
+
