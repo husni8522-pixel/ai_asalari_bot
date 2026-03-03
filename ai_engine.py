@@ -3,6 +3,7 @@ from utils import basic_chat, t
 from indexer import search_docs
 from globals import user_memory, user_levels
 from globals import user_languages
+from utils import is_asalari
 
 # 🔍 Kasallik savolini aniqlash
 def is_disease_question(q):
@@ -22,7 +23,11 @@ def ai_answer(uid, q):
     basic = basic_chat(uid, q)
     if basic:
         return basic
-
+        
+# 🔐 1️⃣ KEYWORD FILTER
+    if not is_asalari(q):
+        return t(uid, "only_beekeeping")
+    
     # 2️⃣ User memory
     if uid not in user_memory:
         user_memory[uid] = []
@@ -32,6 +37,10 @@ def ai_answer(uid, q):
     # 3️⃣ FAISS context
     ctx_list = search_docs(q)
 
+    # 🔐 1️⃣ KEYWORD FILTER
+    if not is_asalari(q):
+        return t(uid, "only_beekeeping")
+    
     if not ctx_list:
         return t(uid, "only_beekeeping")
 
@@ -151,4 +160,5 @@ Rules:
     )
 
     return r.choices[0].message.content.strip()
+
 
