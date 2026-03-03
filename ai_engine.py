@@ -171,17 +171,41 @@ Rules:
     r = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
-            {"role": "system", "content": system_prompt},
             {
-                "role": "user",
-                "content": f"Answer strictly in {target_lang} language.\n\n{ctx}\n\nQuestion:\n{q}"
-            }
+                "role": "system",
+                "content": f"""
+You are a professional beekeeping expert.
+
+CRITICAL LANGUAGE RULE:
+- You MUST answer ONLY in {target_lang}.
+- Even if context is in another language, translate it mentally.
+- Never switch language.
+- Final output must be in {target_lang}.
+"""
+        },
+        {
+            "role": "user",
+            "content": f"""
+The following text is context. It may be in a different language.
+You MUST use it only as information source.
+
+CONTEXT:
+{ctx}
+
+QUESTION:
+{q}
+
+IMPORTANT:
+Final answer MUST be in {target_lang}.
+"""
+        }
     ],
     temperature=temperature,
     max_tokens=max_tokens
 )
 
     return r.choices[0].message.content.strip()
+
 
 
 
