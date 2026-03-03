@@ -103,20 +103,17 @@ Structure:
 
         else:
 
-            system_prompt = """
+            system_prompt = f"""
 You are a professional beekeeping expert.
 
-Rules:
-- Always answer in the same language as the user.
-- Provide structured professional explanation.
-- Include biological and technical details.
-- Add practical recommendations.
+CRITICAL LANGUAGE RULE:
+- The final answer MUST be written ONLY in {target_lang}.
+- If the knowledge base is in another language, translate internally.
+- Never respond in any other language.
 
-Structure:
+If you break this rule, the answer is invalid.
 
-📘 Tushuntirish
-🔬 Ilmiy izoh
-⚙ Amaliy tavsiyalar
+Follow structured professional format.
 """
 
     # =========================
@@ -153,12 +150,14 @@ Rules:
         model="gpt-4.1-mini",
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"{ctx}\n\nQuestion: {q}"}
+            {"role": "system", "content": f"Knowledge Base:\n{ctx}"},
+            {"role": "user", "content": f"Answer in {target_lang}:\n\n{q}"}
         ],
-        temperature=temperature,
-        max_tokens=max_tokens
-    )
+    temperature=temperature,
+    max_tokens=max_tokens
+)
 
     return r.choices[0].message.content.strip()
+
 
 
