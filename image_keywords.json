@@ -1,0 +1,145 @@
+{
+ "queen": {
+  "uz": ["asalari onasi","malika ari","ona asalari"],
+  "ru": ["пчелиная матка","матка пчелы"],
+  "en": ["queen bee","honey bee queen"]
+ },
+
+ "worker": {
+  "uz": ["ishchi asalari"],
+  "ru": ["рабочая пчела"],
+  "en": ["worker bee"]
+ },
+
+ "drone": {
+  "uz": ["erkak asalari"],
+  "ru": ["трутень"],
+  "en": ["drone bee"]
+ },
+
+ "egg": {
+  "uz": ["asalari tuxumi"],
+  "ru": ["яйцо пчелы"],
+  "en": ["bee egg"]
+ },
+
+ "larva": {
+  "uz": ["asalari lichinkasi"],
+  "ru": ["личинка пчелы"],
+  "en": ["bee larva"]
+ },
+
+ "pupa": {
+  "uz": ["asalari gumbagi"],
+  "ru": ["куколка пчелы"],
+  "en": ["bee pupa"]
+ },
+
+ "queen": {
+  "uz": ["asalari onasi","malika ari","ona asalari"],
+  "ru": ["пчелиная матка","матка пчелы"],
+  "en": ["queen bee","honey bee queen"]
+ },
+
+ "worker": {
+  "uz": ["ishchi asalari"],
+  "ru": ["рабочая пчела"],
+  "en": ["worker bee"]
+ },
+
+ "drone": {
+  "uz": ["erkak asalari"],
+  "ru": ["трутень"],
+  "en": ["drone bee"]
+ },
+
+ "egg": {
+  "uz": ["asalari tuxumi"],
+  "ru": ["яйцо пчелы"],
+  "en": ["bee egg"]
+ },
+
+ "larva": {
+  "uz": ["asalari lichinkasi"],
+  "ru": ["личинка пчелы"],
+  "en": ["bee larva"]
+ },
+
+ "pupa": {
+  "uz": ["asalari gumbagi"],
+  "ru": ["куколка пчелы"],
+  "en": ["bee pupa"]
+ },
+
+ "buckfast": {
+  "uz": ["bakfast asalari"],
+  "ru": ["бакфаст пчела"],
+  "en": ["buckfast bee"]
+ },
+
+ "carnica": {
+  "uz": ["karnika asalari"],
+  "ru": ["карника пчела"],
+  "en": ["carnica bee"]
+ },
+
+ "italian_bee": {
+  "uz": ["italiya asalari"],
+  "ru": ["итальянская пчела"],
+  "en": ["italian bee"]
+ },
+
+ "caucasian_bee": {
+  "uz": ["kavkaz asalari"],
+  "ru": ["кавказская пчела"],
+  "en": ["caucasian bee"]
+ },
+ 
+ "buckfast": {
+  "uz": ["bakfast asalari"],
+  "ru": ["бакфаст пчела"],
+  "en": ["buckfast bee"]
+ },
+
+ "carnica": {
+  "uz": ["karnika asalari"],
+  "ru": ["карника пчела"],
+  "en": ["carnica bee"]
+ },
+
+ "italian_bee": {
+  "uz": ["italiya asalari"],
+  "ru": ["итальянская пчела"],
+  "en": ["italian bee"]
+ },
+
+ "caucasian_bee": {
+  "uz": ["kavkaz asalari"],
+  "ru": ["кавказская пчела"],
+  "en": ["caucasian bee"]
+ },
+
+ "honey": {
+  "uz": ["asal"],
+  "ru": ["мёд"],
+  "en": ["honey"]
+ },
+
+ "propolis": {
+  "uz": ["propolis"],
+  "ru": ["прополис"],
+  "en": ["propolis"]
+ },
+
+ "wax": {
+  "uz": ["mum"],
+  "ru": ["пчелиный воск"],
+  "en": ["beeswax"]
+ },
+
+ "royal_jelly": {
+  "uz": ["asalari suti"],
+  "ru": ["маточное молочко"],
+  "en": ["royal jelly"]
+ }
+}
