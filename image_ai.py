@@ -12,70 +12,60 @@ META_FILE = "image_meta.pkl"
 client = OpenAI()
 
 # ===============================
-# 🔹 Sinonimlar
+# 🔹 Sinonim bazasi
 # ===============================
 
 if os.path.exists("image_synonyms_big.json"):
-    with open("image_synonyms_big.json","r",encoding="utf-8") as f:
+    with open("image_synonyms_big.json", "r", encoding="utf-8") as f:
         IMAGE_KB = json.load(f)
-
 elif os.path.exists("image_synonyms.json"):
-    with open("image_synonyms.json","r",encoding="utf-8") as f:
+    with open("image_synonyms.json", "r", encoding="utf-8") as f:
         IMAGE_KB = json.load(f)
-
 else:
     IMAGE_KB = {}
-
 
 # ===============================
 # 🔹 KEYWORD SEARCH
 # ===============================
 
-def keyword_image_search(question):
+def keyword_search(question):
 
     q = question.lower()
-
     results = []
 
-    for root,dirs,files in os.walk(IMAGE_DIR):
+    for file in os.listdir(IMAGE_DIR):
 
-        for f in files:
+        if not file.lower().endswith(("jpg","jpeg","png")):
+            continue
 
-            if not f.lower().endswith(("jpg","png","jpeg")):
-                continue
+        name = os.path.splitext(file)[0].lower()
 
-            name = os.path.splitext(f)[0].lower()
-            folder = os.path.basename(root).lower()
+        # 1️⃣ file nomi
+        if name in q:
+            results.append(os.path.join(IMAGE_DIR,file))
+            continue
 
-            # file nomi tekshirish
-            if name in q or folder in q:
+        # 2️⃣ sinonim
+        data = IMAGE_KB.get(name)
 
-                results.append(os.path.join(root,f))
-
-            # sinonim tekshirish
-            data = IMAGE_KB.get(folder)
-
-            if data:
-
-                for words in data.values():
-
-                    for w in words:
-
-                        if w.lower() in q:
-                            results.append(os.path.join(root,f))
+        if data:
+            for words in data.values():
+                for w in words:
+                    if w.lower() in q:
+                        results.append(os.path.join(IMAGE_DIR,file))
 
     return list(set(results))
 
 
 # ===============================
-# 🔹 Description
+# 🔹 DESCRIPTION
 # ===============================
 
-def build_description(base_name,folder):
+def build_description(name):
 
-    words = [base_name,folder]
+    words=[name]
 
-    data = IMAGE_KB.get(folder)
+    data=IMAGE_KB.get(name)
 
     if data:
         for w in data.values():
@@ -93,22 +83,17 @@ def build_image_index():
     texts=[]
     paths=[]
 
-    for root,dirs,files in os.walk(IMAGE_DIR):
+    for file in os.listdir(IMAGE_DIR):
 
-        for f in files:
+        if not file.lower().endswith(("jpg","jpeg","png")):
+            continue
 
-            if not f.lower().endswith(("jpg","png","jpeg")):
-                continue
+        name=os.path.splitext(file)[0].lower()
 
-            path=os.path.join(root,f)
+        desc=build_description(name)
 
-            name=os.path.splitext(f)[0].lower()
-            folder=os.path.basename(root).lower()
-
-            desc=build_description(name,folder)
-
-            texts.append(desc)
-            paths.append(path)
+        texts.append(desc)
+        paths.append(os.path.join(IMAGE_DIR,file))
 
     embeddings=[]
 
@@ -178,13 +163,13 @@ def embedding_search(question):
 
 def find_images_for_question(question):
 
-    # 1️⃣ Keyword search
-    kw=keyword_image_search(question)
+    # 1️⃣ keyword search
+    kw=keyword_search(question)
 
     if kw:
         return kw[:3]
 
-    # 2️⃣ Embedding search
+    # 2️⃣ embedding search
     emb=embedding_search(question)
 
     return emb[:3]
