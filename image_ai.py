@@ -53,18 +53,21 @@ def expand_question(question):
 # ===============================
 def build_description(base_name, folder):
 
-    data = IMAGE_KB.get(base_name)
-
     words = []
 
-    if data and isinstance(data, dict):
-
-        for lang in data:
-            if isinstance(data[lang], list):
-                words.extend(data[lang])
-
-    words.append(base_name)
+    # 1️⃣ folder asosiy keyword
     words.append(folder)
+
+    # 2️⃣ file nomi
+    words.append(base_name)
+
+    # 3️⃣ sinonim bazasi
+    data = IMAGE_KB.get(folder)
+
+    if data:
+        for lang_words in data.values():
+            if isinstance(lang_words, list):
+                words.extend(lang_words)
 
     return " ".join(words)
 
@@ -164,5 +167,6 @@ def find_images_for_question(question, threshold=0.30):
             results.append(os.path.join(IMAGE_DIR, meta[idx]))
 
     return results
+
 
 
