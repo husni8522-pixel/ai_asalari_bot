@@ -61,19 +61,18 @@ def build_description(base_name, folder):
 
     data = IMAGE_KB.get(base_name)
 
-    if not data:
-        return f"{base_name} {folder}"
+    words = []
 
-    combined = []
+    if data and isinstance(data, dict):
 
-    for key in data:
-        if isinstance(data[key], list):
-            combined.extend(data[key])
+        for lang in data:
+            if isinstance(data[lang], list):
+                words.extend(data[lang])
 
-    combined.append(base_name)
-    combined.append(folder)
+    words.append(base_name)
+    words.append(folder)
 
-    return ", ".join(combined)
+    return " ".join(words)
 
 
 # ===============================
@@ -171,3 +170,4 @@ def find_images_for_question(question, threshold=0.35):
             results.append(os.path.join(IMAGE_DIR, meta[idx]))
 
     return results
+
