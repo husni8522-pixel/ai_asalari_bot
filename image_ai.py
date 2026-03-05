@@ -34,22 +34,16 @@ def expand_question(question):
 
     for key, data in IMAGE_KB.items():
 
-        if not isinstance(data, dict):
-            continue
+        for words in data.values():
 
-        for lang_words in data.values():
-
-            if not isinstance(lang_words, list):
+            if not isinstance(words, list):
                 continue
 
-            for word in lang_words:
+            for w in words:
 
-                if word.lower() in q:
+                if w.lower() in q:
 
-                    # barcha sinonimlarni qo‘shamiz
-                    expanded = " ".join(lang_words)
-
-                    return q + " " + expanded
+                    return q + " " + " ".join(words)
 
     return q
 
@@ -135,7 +129,7 @@ def build_image_index():
 # ===============================
 # 🔹 Image Search
 # ===============================
-def find_images_for_question(question, threshold=0.35):
+def find_images_for_question(question, threshold=0.30):
 
     if not os.path.exists(INDEX_FILE) or not os.path.exists(META_FILE):
         build_image_index()
@@ -170,4 +164,5 @@ def find_images_for_question(question, threshold=0.35):
             results.append(os.path.join(IMAGE_DIR, meta[idx]))
 
     return results
+
 
