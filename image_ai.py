@@ -1,99 +1,56 @@
 import os
 import json
-from openai import OpenAI
 
-IMAGE_DIR="images"
-TAG_FILE="image_tags.json"
+IMAGE_DIR = "images"
+KEYWORDS_FILE = "image_keywords.json"
 
-client=OpenAI()
+# ===============================
+# 🔹 KEYWORDS LOAD
+# ===============================
 
-# =========================
-# TAG FILE LOAD
-# =========================
-
-if os.path.exists(TAG_FILE):
-    with open(TAG_FILE,"r",encoding="utf-8") as f:
-        IMAGE_TAGS=json.load(f)
+if os.path.exists(KEYWORDS_FILE):
+    with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
+        IMAGE_KEYWORDS = json.load(f)
 else:
-    IMAGE_TAGS={}
-
-# =========================
-# AUTO TAG GENERATION
-# =========================
-
-def generate_tags(image_name):
-
-    prompt=f"""
-Generate search keywords for this beekeeping image.
-
-Image name: {image_name}
-
-Rules:
-- include english
-- include russian
-- include uzbek
-- include scientific terms
-- 10 keywords
-Return list only.
-"""
-
-    r=client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {"role":"system","content":"You generate search tags for beekeeping images."},
-            {"role":"user","content":prompt}
-        ],
-        temperature=0
-    )
-
-    text=r.choices[0].message.content
-
-    tags=[t.strip() for t in text.split("\n") if t.strip()]
-
-    return tags
+    IMAGE_KEYWORDS = {}
 
 
-# =========================
-# BUILD TAG DATABASE
-# =========================
-
-def build_image_tags():
-
-    global IMAGE_TAGS
-
-    for file in os.listdir(IMAGE_DIR):
-
-        if not file.endswith(("jpg","png","jpeg")):
-            continue
-
-        if file in IMAGE_TAGS:
-            continue
-
-        tags=generate_tags(file)
-
-        IMAGE_TAGS[file]=tags
-
-        print("Tagged:",file)
-
-    with open(TAG_FILE,"w",encoding="utf-8") as f:
-        json.dump(IMAGE_TAGS,f,ensure_ascii=False,indent=2)
-
-
-# =========================
-# IMAGE SEARCH
-# =========================
+# ===============================
+# 🔹 IMAGE SEARCH
+# ===============================
 
 def find_images_for_question(question):
 
-    q=question.lower()
+    q = question.lower()
+    results = []
 
-    results=[]
+    for key, langs in IMAGE_KEYWORDS.items():
 
-    for img,tags in IMAGE_TAGS.items():
+        keywords = []
 
-        for tag in tags:
+        # uz + ru + en keywordlarni birlashtirish
+        if isinstance(langs, dict):
+            for lang_words in langs.values():
+                keywords.extend(lang_words)
 
-            if tag.lower() in q:
-                results.append(os.path.join(IMAGE_DIR,img))
+        # keyword match
+        for word in keywords:
+
+            if word.lower() in q:
+
+                # mos rasmni qidirish
+                for file in os.listdir(IMAGE_DIR):
+
+                    if not file.lower().endswith(("jpg","jpeg","png")):
+                        continue
+
+                    name = os.path.splitext(file)[0].lower()
+
+                    if name == key or name.startswith(key):
+
+                        img_path = os.path.join(IMAGE_DIR, file)
+
+                        if img_path not in results:
+                            results.append(img_path)
 
     return results[:3]
