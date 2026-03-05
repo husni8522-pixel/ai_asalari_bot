@@ -17,11 +17,42 @@ client = OpenAI()
 if os.path.exists("image_synonyms_big.json"):
     with open("image_synonyms_big.json", "r", encoding="utf-8") as f:
         IMAGE_KB = json.load(f)
+
 elif os.path.exists("image_synonyms.json"):
     with open("image_synonyms.json", "r", encoding="utf-8") as f:
         IMAGE_KB = json.load(f)
+
 else:
     IMAGE_KB = {}
+
+# ===============================
+# 🔹 Savolni sinonim bilan kengaytirish
+# ===============================
+def expand_question(question):
+
+    q = question.lower()
+
+    for key, data in IMAGE_KB.items():
+
+        if not isinstance(data, dict):
+            continue
+
+        for lang_words in data.values():
+
+            if not isinstance(lang_words, list):
+                continue
+
+            for word in lang_words:
+
+                if word.lower() in q:
+
+                    # barcha sinonimlarni qo‘shamiz
+                    expanded = " ".join(lang_words)
+
+                    return q + " " + expanded
+
+    return q
+
 
 # ===============================
 # 🔹 Description builder
@@ -58,7 +89,9 @@ def build_image_index():
     paths = []
 
     for root, dirs, files in os.walk(IMAGE_DIR):
+
         for file in files:
+
             if not file.lower().endswith((".jpg", ".jpeg", ".png")):
                 continue
 
@@ -80,6 +113,7 @@ def build_image_index():
     embeddings = []
 
     for text in texts:
+
         emb = client.embeddings.create(
             model="text-embedding-3-small",
             input=text
@@ -102,7 +136,7 @@ def build_image_index():
 # ===============================
 # 🔹 Image Search
 # ===============================
-def find_images_for_question(question, threshold=0.4):
+def find_images_for_question(question, threshold=0.35):
 
     if not os.path.exists(INDEX_FILE) or not os.path.exists(META_FILE):
         build_image_index()
@@ -112,6 +146,9 @@ def find_images_for_question(question, threshold=0.4):
 
     index = faiss.read_index(INDEX_FILE)
     meta = pickle.load(open(META_FILE, "rb"))
+
+    # 🔥 Savolni sinonim bilan kengaytiramiz
+    question = expand_question(question)
 
     q_emb = client.embeddings.create(
         model="text-embedding-3-small",
@@ -123,10 +160,14 @@ def find_images_for_question(question, threshold=0.4):
 
     scores, ids = index.search(q_emb, 5)
 
-    best_score = scores[0][0]
-    best_id = ids[0][0]
+    results = []
 
-    if best_score >= threshold:
-        return [os.path.join(IMAGE_DIR, meta[best_id])]
+    for score, idx in zip(scores[0], ids[0]):
 
-    return []
+        if idx == -1:
+            continue
+
+        if score >= threshold:
+            results.append(os.path.join(IMAGE_DIR, meta[idx]))
+
+    return results
