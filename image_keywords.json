@@ -53,12 +53,6 @@
   "en": ["bee brush"]
  },
 
- "honey_extractor": {
-  "uz": ["asal ajratgich"],
-  "ru": ["медогонка"],
-  "en": ["honey extractor"]
- },
-
  "buckfast": {
   "uz": ["bakfast asalari"],
   "ru": ["бакфаст пчела"],
@@ -155,3 +149,4 @@
   "en": ["american foulbrood"]
  }
 }
+
