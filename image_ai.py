@@ -5,7 +5,7 @@ IMAGE_DIR = "images"
 KEYWORDS_FILE = "image_keywords.json"
 
 # ===============================
-# 🔹 KEYWORDS LOAD
+# KEYWORDS LOAD
 # ===============================
 
 if os.path.exists(KEYWORDS_FILE):
@@ -14,31 +14,29 @@ if os.path.exists(KEYWORDS_FILE):
 else:
     IMAGE_KEYWORDS = {}
 
-
 # ===============================
-# 🔹 IMAGE SEARCH
+# IMAGE SEARCH
 # ===============================
 
 def find_images_for_question(question):
 
     q = question.lower()
-    results = []
 
     for key, langs in IMAGE_KEYWORDS.items():
 
         keywords = []
 
-        # uz + ru + en keywordlarni birlashtirish
+        # barcha tillardagi keywordlarni birlashtirish
         if isinstance(langs, dict):
             for lang_words in langs.values():
                 keywords.extend(lang_words)
 
-        # keyword match
+        # keyword tekshirish
         for word in keywords:
 
             if word.lower() in q:
 
-                # mos rasmni qidirish
+                # mos rasmni topish
                 for file in os.listdir(IMAGE_DIR):
 
                     if not file.lower().endswith(("jpg","jpeg","png")):
@@ -46,11 +44,7 @@ def find_images_for_question(question):
 
                     name = os.path.splitext(file)[0].lower()
 
-                    if name == key or name.startswith(key):
+                    if name.startswith(key):
+                        return [os.path.join(IMAGE_DIR, file)]
 
-                        img_path = os.path.join(IMAGE_DIR, file)
-
-                        if img_path not in results:
-                            results.append(img_path)
-
-    return results[:3]
+    return []
