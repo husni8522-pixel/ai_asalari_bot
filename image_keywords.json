@@ -54,33 +54,39 @@
  },
 
  "buckfast": {
-  "uz": ["bakfast asalari"],
+  "uz": ["bakfast asalari","bakfast","bakfast zoti","bakfast turi"],
   "ru": ["бакфаст пчела"],
   "en": ["buckfast bee"]
  },
 
  "carnica": {
-  "uz": ["karnika asalari"],
+  "uz": ["karnika asalari","karnika","karnika zoti","karnika turi"],
   "ru": ["карника пчела"],
   "en": ["carnica bee"]
  },
 
  "italian_bee": {
-  "uz": ["italiya asalari"],
+  "uz": ["italiya asalari","italiya","italiya zoti","italiya turi"],
   "ru": ["итальянская пчела"],
   "en": ["italian bee"]
  },
 
  "caucasian_bee": {
-  "uz": ["kavkaz asalari"],
+  "uz": ["kavkaz asalari","kavkaz","kavkaz zoti","kavkaz turi"],
   "ru": ["кавказская пчела"],
   "en": ["caucasian bee"]
  },
  
  "cordovan_bee": {
-  "uz": ["Kordovan asalari"],
+  "uz": ["Kordovan asalari","Kordovan","Kordovan zoti","Kordovan turi"],
   "ru": ["Кордован пчела"],
   "en": ["cordovan bee"]
+ },
+
+  "carpathian_bee": {
+  "uz": ["Karpat asalari","karpat","karpat zoti","karpat turi"],
+  "ru": ["карпат пчела"],
+  "en": ["carpathian bee"]
  },
 
   "honey": {
@@ -149,4 +155,5 @@
   "en": ["american foulbrood"]
  }
 }
+
 
