@@ -1,138 +1,138 @@
 {
  "queen": {
-  "uz": ["asalari onasi","malika ari","ona asalari"],
+  "uz": ["asalari onasi","malika ari","ona asalari","асалари онаси","малика ари","она асалари"],
   "ru": ["пчелиная матка","матка пчелы"],
   "en": ["queen bee","honey bee queen"]
  },
 
  "worker": {
-  "uz": ["ishchi asalari"],
+  "uz": ["ishchi asalari","ишчи асалари"],
   "ru": ["рабочая пчела"],
   "en": ["worker bee"]
  },
 
  "drone": {
-  "uz": ["erkak asalari"],
+  "uz": ["erkak asalari","эркак асалари"],
   "ru": ["трутень"],
   "en": ["drone bee"]
  },
 
  "egg": {
-  "uz": ["asalari tuxumi"],
+  "uz": ["asalari tuxumi","асалари тухуми"],
   "ru": ["яйцо пчелы"],
   "en": ["bee egg"]
  },
 
  "larva": {
-  "uz": ["asalari lichinkasi"],
+  "uz": ["asalari lichinkasi","асалари личинкаси"],
   "ru": ["личинка пчелы"],
   "en": ["bee larva"]
  },
 
  "pupa": {
-  "uz": ["asalari gumbagi"],
+  "uz": ["asalari gumbagi","асалари ғумбаги"],
   "ru": ["куколка пчелы"],
   "en": ["bee pupa"]
  },
 
  "smoker": {
-  "uz": ["asalari tutatgichi"],
+  "uz": ["asalari tutatgichi","асалари тутатқичи"],
   "ru": ["дымарь пчеловода"],
   "en": ["bee smoker"]
  },
 
  "hive_tool": {
-  "uz": ["asalari asbobi"],
+  "uz": ["asalari asbobi","асалари асбоби"],
   "ru": ["пчеловодный инструмент"],
   "en": ["hive tool"]
  },
 
  "bee_brush": {
-  "uz": ["asalari cho'tkasi"],
+  "uz": ["asalari cho'tkasi","асалари чўткаси","асалари чуткаси"],
   "ru": ["щетка пчеловода"],
   "en": ["bee brush"]
  },
 
  "buckfast": {
-  "uz": ["bakfast asalari","bakfast","bakfast zoti","bakfast turi"],
+  "uz": ["bakfast asalari","bakfast","bakfast zoti","bakfast turi","бакфаст асалари","бакфаст","бакфаст зоти","бакфаст тури"],
   "ru": ["бакфаст пчела"],
   "en": ["buckfast bee"]
  },
 
  "carnica": {
-  "uz": ["karnika asalari","karnika","karnika zoti","karnika turi"],
+  "uz": ["karnika asalari","karnika","karnika zoti","karnika turi","карника асалари","карника","карника зоти","карника тури"],
   "ru": ["карника пчела"],
   "en": ["carnica bee"]
  },
 
  "italian_bee": {
-  "uz": ["italiya asalari","italiya","italiya zoti","italiya turi"],
+  "uz": ["italiya asalari","italiya","italiya zoti","italiya turi","италия асалари","италия","италия зоти","италия тури"],
   "ru": ["итальянская пчела"],
   "en": ["italian bee"]
  },
 
  "caucasian_bee": {
-  "uz": ["kavkaz asalari","kavkaz","kavkaz zoti","kavkaz turi"],
+  "uz": ["kavkaz asalari","kavkaz","kavkaz zoti","kavkaz turi","кавказ асалари","кавказ","кавказ зоти","кавказ тури"],
   "ru": ["кавказская пчела"],
   "en": ["caucasian bee"]
  },
  
  "cordovan_bee": {
-  "uz": ["Kordovan asalari","Kordovan","Kordovan zoti","Kordovan turi"],
+  "uz": ["Kordovan asalari","Kordovan","Kordovan zoti","Kordovan turi","кордован асалари","кордован","кордован зоти","кордован тури"],
   "ru": ["Кордован пчела"],
   "en": ["cordovan bee"]
  },
 
   "carpathian_bee": {
-  "uz": ["Karpat asalari","karpat","karpat zoti","karpat turi"],
+  "uz": ["Karpat asalari","karpat","karpat zoti","karpat turi","Карпат асалари","карпат","карпат зоти","карпат тури"],
   "ru": ["карпат пчела"],
   "en": ["carpathian bee"]
  },
 
   "honey": {
-  "uz": ["asal"],
+  "uz": ["asal","асал"],
   "ru": ["мёд"],
   "en": ["honey"]
  },
 
  "propolis": {
-  "uz": ["propolis"],
+  "uz": ["propolis","прополис"],
   "ru": ["прополис"],
   "en": ["propolis"]
  },
 
  "wax": {
-  "uz": ["mum"],
+  "uz": ["mum","мум"],
   "ru": ["пчелиный воск"],
   "en": ["beeswax"]
  },
 
  "royal_jelly": {
-  "uz": ["asalari suti"],
+  "uz": ["asalari suti","асалари сути"],
   "ru": ["маточное молочко"],
   "en": ["royal jelly"]
  },
  
  "varroa": {
-  "uz": ["asalari kanasi","varroa kanasi"],
+  "uz": ["asalari kanasi","varroa kanasi","асалари канаси","варроа канаси","varroa","варроа"],
   "ru": ["клещ варроа"],
   "en": ["varroa mite","varroa destructor"]
  },
 
  "tropilaelaps": {
-  "uz": ["tropilaelaps kanasi"],
+  "uz": ["tropilaelaps kanasi","Tropilaleps kanasi","Tropilaleps","тропилаелапс канаси","тропилалепс канаси","тропилалепс"],
   "ru": ["тропилелапс клещ"],
   "en": ["tropilaelaps mite"]
  },
 
  "acarine_mite": {
-  "uz": ["traxeya kanasi"],
+  "uz": ["traxeya kanasi","Trakeya kanasi","Trakeya","трахея канаси","тракея канаси","тракея"],
   "ru": ["акарапидоз"],
   "en": ["acarine mite"]
  },
 
  "nosema": {
-  "uz": ["nosema kasalligi"],
+  "uz": ["nosema kasalligi","нозематоз","нозема","nozema kasalligi","nozema"],
   "ru": ["нозематоз"],
   "en": ["nosema disease"]
  },
@@ -144,16 +144,17 @@
  },
  
  "queen_calendar": {
-  "uz": ["Ona asalari chiqish kalendari"],
+  "uz": ["Ona asalari chiqish kalendari","Она асалари чиқиш календари","календар","kalendar"],
   "ru": ["Календарь вывода маток"],
   "en": ["queen calendar"]
  },
 
  "american_foulbrood": {
-  "uz": ["amerika chirish kasalligi"],
+  "uz": ["amerika chirish kasalligi","америка чириш касаллиги","chirish"],
   "ru": ["американский гнилец"],
   "en": ["american foulbrood"]
  }
 }
+
 
 
